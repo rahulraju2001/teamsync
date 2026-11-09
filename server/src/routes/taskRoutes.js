@@ -67,6 +67,7 @@ router.post("/", requireRole("Administrator"), async (req, res) => {
     title: title.trim(),
     description,
     status,
+    completedAt: status === "Completed" ? new Date() : null,
     priority,
     dueDate,
     assignee: assigneeId || null,
@@ -124,8 +125,14 @@ router.patch("/:id", async (req, res) => {
     task.assignee = assigneeId || null;
   }
 
+  const previousStatus = task.status;
   for (const key of ["title", "description", "status", "priority", "dueDate"]) {
     if (key in req.body) task[key] = req.body[key];
+  }
+  // Record the moment a task is first moved into Completed. Keep the last
+  // completion timestamp if it is reopened; a later completion overwrites it.
+  if ("status" in req.body && req.body.status === "Completed" && previousStatus !== "Completed") {
+    task.completedAt = new Date();
   }
   if ("title" in req.body && !String(req.body.title).trim()) {
     return res.status(400).json({ message: "Task title cannot be empty." });
