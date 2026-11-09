@@ -8,6 +8,7 @@ import Tasks from "./pages/tasks/Tasks";
 import Team from "./pages/team/Team";
 import AcceptInvitation from "./pages/team/AcceptInvitation";
 import Settings from "./pages/settings/Settings";
+import WorkspaceSettings from "./pages/settings/WorkspaceSettings";
 import MainLayout from "./layouts/MainLayout";
 import NotFound from "./pages/NotFound";
 import { WorkspaceProvider } from "./context/WorkspaceContext";
@@ -31,6 +32,7 @@ function App() {
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/team" element={<Team />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/workspace/settings" element={<WorkspaceSettings />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

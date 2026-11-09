@@ -4,147 +4,6 @@ import { io } from "socket.io-client";
 
 const WorkspaceContext = createContext(null);
 
-const initialProjects = [
-  {
-    id: 1,
-    name: "E-commerce Website",
-    description: "Building an online shopping platform",
-    status: "In Progress",
-    deadline: "2026-12-15",
-    members: ["R", "A", "J"],
-    createdAt: "2026-10-20T09:00:00.000Z",
-  },
-  {
-    id: 2,
-    name: "Team Collaboration App",
-    description: "Developing team management features",
-    status: "In Progress",
-    deadline: "2026-12-17",
-    members: ["R", "M"],
-    createdAt: "2026-10-22T09:00:00.000Z",
-  },
-  {
-    id: 3,
-    name: "Portfolio Website",
-    description: "Personal portfolio redesign",
-    status: "Completed",
-    deadline: "2026-12-19",
-    members: ["R", "A"],
-    createdAt: "2026-10-24T09:00:00.000Z",
-  },
-  {
-    id: 4,
-    name: "Mobile Banking App",
-    description: "Designing a secure banking experience",
-    status: "On Hold",
-    deadline: "2026-12-28",
-    members: ["R", "J", "M"],
-    createdAt: "2026-10-26T09:00:00.000Z",
-  },
-];
-
-const initialTasks = [
-  {
-    id: 101,
-    projectId: 1,
-    title: "Design homepage",
-    description: "Create the responsive homepage layout and visual system.",
-    status: "Completed",
-    priority: "High",
-    assignee: "R",
-    dueDate: "2026-11-05",
-    comments: [
-      {
-        id: 1001,
-        author: "Rahul",
-        text: "The first design draft is ready.",
-        createdAt: "2026-11-01T10:00:00.000Z",
-      },
-    ],
-    createdAt: "2026-10-28T09:00:00.000Z",
-  },
-  {
-    id: 102,
-    projectId: 1,
-    title: "Build authentication",
-    description: "Implement registration, login and protected routes.",
-    status: "In Progress",
-    priority: "High",
-    assignee: "A",
-    dueDate: "2026-11-10",
-    comments: [],
-    createdAt: "2026-10-29T09:00:00.000Z",
-  },
-  {
-    id: 103,
-    projectId: 1,
-    title: "Create product listing",
-    description: "Build product cards, filters and pagination.",
-    status: "To Do",
-    priority: "Medium",
-    assignee: "J",
-    dueDate: "2026-11-12",
-    comments: [],
-    createdAt: "2026-10-30T09:00:00.000Z",
-  },
-  {
-    id: 104,
-    projectId: 2,
-    title: "Create project workspace",
-    description: "Set up the main workspace view.",
-    status: "In Progress",
-    priority: "Medium",
-    assignee: "R",
-    dueDate: "2026-11-14",
-    comments: [],
-    createdAt: "2026-11-01T09:00:00.000Z",
-  },
-  {
-    id: 105,
-    projectId: 2,
-    title: "Add team invitations",
-    description: "Allow workspace admins to invite teammates.",
-    status: "To Do",
-    priority: "Low",
-    assignee: "M",
-    dueDate: "2026-11-18",
-    comments: [],
-    createdAt: "2026-11-02T09:00:00.000Z",
-  },
-];
-
-const initialTeamMembers = [
-  {
-    id: 1,
-    name: "Rahul",
-    email: "rahul@example.com",
-    role: "Administrator",
-    initials: "R",
-  },
-  {
-    id: 2,
-    name: "Ananya",
-    email: "ananya@example.com",
-    role: "Member",
-    initials: "A",
-  },
-  {
-    id: 3,
-    name: "John",
-    email: "john@example.com",
-    role: "Member",
-    initials: "J",
-  },
-  {
-    id: 4,
-    name: "Meera",
-    email: "meera@example.com",
-    role: "Member",
-    initials: "M",
-  },
-];
-
-const STORAGE_KEY = "workspace-app-data-v1";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const SOCKET_URL = API_URL.replace(/\/api\/?$/, "");
 
@@ -190,33 +49,21 @@ const normalizeTask = (task) => ({
 });
 
 
-function readStoredData() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return { projects: initialProjects, tasks: initialTasks };
-    const parsed = JSON.parse(stored);
-    return {
-      projects: Array.isArray(parsed.projects)
-        ? parsed.projects
-        : initialProjects,
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : initialTasks,
-    };
-  } catch {
-    return { projects: initialProjects, tasks: initialTasks };
-  }
-}
-
 export function WorkspaceProvider({ children }) {
-  const [data, setData] = useState(readStoredData);
+  const [data, setData] = useState({ projects: [], tasks: [] });
   const [token, setToken] = useState(() =>
     localStorage.getItem("workspace-token"),
   );
-  const [teamMembers, setTeamMembers] = useState(initialTeamMembers);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [teamMembersStatus, setTeamMembersStatus] = useState(() =>
+    localStorage.getItem("workspace-token") ? "loading" : "idle",
+  );
   const [workspaceInfo, setWorkspaceInfo] = useState(null);
   const [workspaces, setWorkspaces] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [socketConnected, setSocketConnected] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => {
+    if (!localStorage.getItem("workspace-token")) return null;
     try {
       return JSON.parse(localStorage.getItem("workspace-user"));
     } catch {
@@ -232,17 +79,25 @@ export function WorkspaceProvider({ children }) {
       } catch {
         setCurrentUser(null);
       }
+      if (localStorage.getItem("workspace-token")) {
+        setTeamMembersStatus("loading");
+      } else {
+        setData({ projects: [], tasks: [] });
+        setTeamMembers([]);
+        setTeamMembersStatus("idle");
+        setWorkspaceInfo(null);
+        setWorkspaces([]);
+        setNotifications([]);
+        setCurrentUser(null);
+        localStorage.removeItem("workspace-user");
+      }
     };
     window.addEventListener("workspace-auth-changed", syncAuth);
     return () => window.removeEventListener("workspace-auth-changed", syncAuth);
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [data]);
-
-  useEffect(() => {
-    if (!token) return;
+    if (!token) return undefined;
     let cancelled = false;
     Promise.all([
       apiRequest("/projects"),
@@ -277,6 +132,7 @@ export function WorkspaceProvider({ children }) {
           }));
 
           setTeamMembers(members);
+          setTeamMembersStatus("loaded");
 
           setWorkspaceInfo({
             ...workspaceResult.workspace,
@@ -290,107 +146,71 @@ export function WorkspaceProvider({ children }) {
           localStorage.setItem("workspace-user", JSON.stringify(meResult.user));
         },
       )
-      .catch((error) => console.error("Could not load workspace data:", error));
+      .catch((error) => {
+        if (cancelled) return;
+        setTeamMembers([]);
+        setTeamMembersStatus("error");
+        console.error("Could not load workspace data:", error);
+      });
     return () => {
       cancelled = true;
     };
   }, [token]);
 
   const addProject = async (projectData) => {
-    if (token) {
-      const result = await apiRequest("/projects", {
-        method: "POST",
-        body: JSON.stringify(projectData),
-      });
-      const project = normalizeProject(result.project);
-      setData((current) => ({
-        ...current,
-        projects: [project, ...current.projects],
-      }));
-      return project;
-    }
-    const project = {
-      ...projectData,
-      id: Date.now(),
-      status: projectData.status || "In Progress",
-      members: projectData.members || ["R"],
-      createdAt: new Date().toISOString(),
-    };
-    setData((current) => ({
-      ...current,
-      projects: [project, ...current.projects],
-    }));
+    const result = await apiRequest("/projects", {
+      method: "POST",
+      body: JSON.stringify(projectData),
+    });
+    const project = normalizeProject(result.project);
+    setData((current) => ({ ...current, projects: [project, ...current.projects] }));
     return project;
   };
 
   const updateProject = async (projectId, updates) => {
-    if (token) {
-      const result = await apiRequest(`/projects/${projectId}`, {
-        method: "PATCH",
-        body: JSON.stringify(updates),
-      });
-      updates = normalizeProject(result.project);
-    }
+    const result = await apiRequest(`/projects/${projectId}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+    const project = normalizeProject(result.project);
     setData((current) => ({
       ...current,
-      projects: current.projects.map((project) =>
-        String(project.id) === String(projectId)
-          ? { ...project, ...updates }
-          : project,
-      ),
+      projects: current.projects.map((item) => String(item.id) === String(projectId) ? project : item),
     }));
   };
 
   const deleteProject = async (projectId) => {
-    if (token) await apiRequest(`/projects/${projectId}`, { method: "DELETE" });
+    await apiRequest(`/projects/${projectId}`, { method: "DELETE" });
     setData((current) => ({
-      projects: current.projects.filter(
-        (project) => String(project.id) !== String(projectId),
-      ),
-      tasks: current.tasks.filter(
-        (task) => String(task.projectId) !== String(projectId),
-      ),
+      projects: current.projects.filter((project) => String(project.id) !== String(projectId)),
+      tasks: current.tasks.filter((task) => String(task.projectId) !== String(projectId)),
     }));
   };
 
   const addTask = async (taskData) => {
-    if (token) {
-      const result = await apiRequest("/tasks", {
-        method: "POST",
-        body: JSON.stringify({ ...taskData, projectId: taskData.projectId }),
-      });
-      const task = normalizeTask(result.task);
-      setData((current) => ({ ...current, tasks: [task, ...current.tasks] }));
-      return task;
-    }
-    const task = {
-      ...taskData,
-      id: Date.now() + Math.floor(Math.random() * 1000),
-      comments: taskData.comments || [],
-      createdAt: new Date().toISOString(),
-    };
+    const result = await apiRequest("/tasks", {
+      method: "POST",
+      body: JSON.stringify({ ...taskData, projectId: taskData.projectId }),
+    });
+    const task = normalizeTask(result.task);
     setData((current) => ({ ...current, tasks: [task, ...current.tasks] }));
     return task;
   };
 
   const updateTask = async (taskId, updates) => {
-    if (token) {
-      const result = await apiRequest(`/tasks/${taskId}`, {
-        method: "PATCH",
-        body: JSON.stringify(updates),
-      });
-      updates = normalizeTask(result.task);
-    }
+    const result = await apiRequest(`/tasks/${taskId}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+    const task = normalizeTask(result.task);
     setData((current) => ({
       ...current,
-      tasks: current.tasks.map((task) =>
-        String(task.id) === String(taskId) ? { ...task, ...updates } : task,
-      ),
+      tasks: current.tasks.map((item) => String(item.id) === String(taskId) ? task : item),
     }));
   };
 
   const deleteTask = async (taskId) => {
-    if (token) await apiRequest(`/tasks/${taskId}`, { method: "DELETE" });
+    await apiRequest(`/tasks/${taskId}`, { method: "DELETE" });
     setData((current) => ({
       ...current,
       tasks: current.tasks.filter((task) => String(task.id) !== String(taskId)),
@@ -398,36 +218,18 @@ export function WorkspaceProvider({ children }) {
   };
 
   const addComment = async (taskId, commentData) => {
-    let comment = {
-      ...commentData,
-      id: Date.now(),
-      createdAt: new Date().toISOString(),
-    };
-    if (token) {
-      const result = await apiRequest(`/tasks/${taskId}/comments`, {
-        method: "POST",
-        body: JSON.stringify({ text: commentData.text }),
-      });
-      const comments = (result.comments || []).map((item) => ({
-        ...item,
-        id: item._id,
-        author: item.author?.name || "Team member",
-      }));
-      setData((current) => ({
-        ...current,
-        tasks: current.tasks.map((task) =>
-          String(task.id) === String(taskId) ? { ...task, comments } : task,
-        ),
-      }));
-      return;
-    }
+    const result = await apiRequest(`/tasks/${taskId}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ text: commentData.text }),
+    });
+    const comments = (result.comments || []).map((item) => ({
+      ...item,
+      id: item._id,
+      author: item.author?.name || "Team member",
+    }));
     setData((current) => ({
       ...current,
-      tasks: current.tasks.map((task) =>
-        String(task.id) === String(taskId)
-          ? { ...task, comments: [...(task.comments || []), comment] }
-          : task,
-      ),
+      tasks: current.tasks.map((task) => String(task.id) === String(taskId) ? { ...task, comments } : task),
     }));
   };
 
@@ -443,6 +245,7 @@ export function WorkspaceProvider({ children }) {
         .toUpperCase(),
     }));
     setTeamMembers(members);
+    setTeamMembersStatus("loaded");
     setWorkspaceInfo({
       ...result.workspace,
       role: result.role,
@@ -488,6 +291,7 @@ export function WorkspaceProvider({ children }) {
     }));
 
     setTeamMembers(members);
+    setTeamMembersStatus("loaded");
 
     setWorkspaceInfo({
       ...workspaceResult.workspace,
@@ -543,12 +347,57 @@ export function WorkspaceProvider({ children }) {
     await refreshWorkspace();
   };
 
+  const leaveWorkspace = async () => {
+    await apiRequest("/workspace/leave", { method: "POST" });
+    setNotifications([]);
+    await refreshWorkspaceData();
+  };
+
+  const transferWorkspaceOwnership = async (userId) => {
+    const result = await apiRequest("/workspace/transfer-ownership", {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    });
+    await refreshWorkspaceData();
+    return result;
+  };
+
+  const deleteWorkspace = async () => {
+    await apiRequest("/workspace", { method: "DELETE" });
+    setNotifications([]);
+    await refreshWorkspaceData();
+  };
+
   const renameWorkspace = async (name) => {
     const result = await apiRequest("/workspace", {
       method: "PATCH",
       body: JSON.stringify({ name }),
     });
     setWorkspaceInfo((current) => ({ ...current, ...result.workspace }));
+  };
+
+  const updateProfile = async (name) => {
+    const result = await apiRequest("/auth/profile", {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    });
+    setCurrentUser(result.user);
+    localStorage.setItem("workspace-user", JSON.stringify(result.user));
+    await refreshWorkspaceData();
+    return result.user;
+  };
+
+  const updateNotificationPreferences = async (preferences) => {
+    const result = await apiRequest("/auth/preferences", {
+      method: "PATCH",
+      body: JSON.stringify(preferences),
+    });
+    setCurrentUser((current) => {
+      const updated = current ? { ...current, notificationPreferences: result.notificationPreferences } : current;
+      if (updated) localStorage.setItem("workspace-user", JSON.stringify(updated));
+      return updated;
+    });
+    return result.notificationPreferences;
   };
 
   const refreshNotifications = async () => {
@@ -601,10 +450,23 @@ export function WorkspaceProvider({ children }) {
       setSocketConnected(false);
       console.warn("Live connection unavailable:", error.message);
     });
-    socket.on("workspace:changed", () => {
-      setNotifications([]);
+    socket.on("workspace:changed", (event = {}) => {
+      const deletedDifferentWorkspace =
+        event.action === "deleted" &&
+        String(event.deletedWorkspaceId) !== String(activeWorkspaceId);
+
+      // A workspace can be deleted while this user is active in another one.
+      // Refresh the workspace list without clearing notifications in that case.
+      if (event.action !== "ownership_transferred" && !deletedDifferentWorkspace) {
+        setNotifications([]);
+      }
       refreshWorkspaceData().catch((error) =>
-        console.error("Could not sync the active workspace:", error),
+        console.error("Could not sync workspace changes:", error),
+      );
+    });
+    socket.on("workspace:member_changed", () => {
+      refreshWorkspaceData().catch((error) =>
+        console.error("Could not sync workspace members:", error),
       );
     });
     socket.on("notification:new", (notification) => {
@@ -632,8 +494,11 @@ export function WorkspaceProvider({ children }) {
       projects: data.projects,
       tasks: data.tasks,
       teamMembers,
+      teamMembersStatus,
       workspaceInfo,
       currentUser,
+      updateProfile,
+      updateNotificationPreferences,
       isAdmin: workspaceInfo
         ? workspaceInfo.role === "Administrator"
         : currentUser?.role === "Administrator",
@@ -642,6 +507,9 @@ export function WorkspaceProvider({ children }) {
       updateMemberRole,
       removeMember,
       renameWorkspace,
+      leaveWorkspace,
+      transferWorkspaceOwnership,
+      deleteWorkspace,
       workspaces,
       switchWorkspace,
       createWorkspace,

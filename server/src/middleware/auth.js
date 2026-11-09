@@ -23,8 +23,16 @@ async function ensureWorkspace(user) {
     { $set: { workspace: workspace._id } },
   );
 
-  if (String(user.activeWorkspace || "") !== String(workspace._id)) {
+  const membership = workspace.members.find(
+    (member) => String(member.user) === String(user._id),
+  );
+  const nextRole = membership?.role || "Administrator";
+  if (
+    String(user.activeWorkspace || "") !== String(workspace._id) ||
+    user.role !== nextRole
+  ) {
     user.activeWorkspace = workspace._id;
+    user.role = nextRole;
     await user.save({ validateBeforeSave: false });
   }
   return workspace;

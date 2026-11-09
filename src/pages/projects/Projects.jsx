@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Plus, Search, FolderKanban, Trash2, Pencil, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "../../context/WorkspaceContext";
+import ActionDialog from "../../components/ui/ActionDialog";
 
 const emptyForm = { name: "", description: "", deadline: "", status: "In Progress" };
 
@@ -15,6 +16,8 @@ function Projects() {
   const [formData, setFormData] = useState(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [dialog, setDialog] = useState(null);
+  const [dialogBusy, setDialogBusy] = useState(false);
 
   const today = new Date();
   today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
@@ -87,14 +90,25 @@ function Projects() {
     }
   };
 
-  const handleDelete = async (event, project) => {
+  const handleDelete = (event, project) => {
     event.stopPropagation();
-    if (!window.confirm(`Delete ${project.name}? Its tasks will also be deleted.`)) return;
-    try {
-      await deleteProject(project.id);
-    } catch (error) {
-      window.alert(error.message || "Could not delete the project.");
-    }
+    setDialog({
+      variant: "danger",
+      title: "Delete project?",
+      message: `Are you sure you want to delete “${project.name}”? All tasks in this project will also be deleted. This action cannot be undone.`,
+      confirmLabel: "Delete project",
+      onConfirm: async () => {
+        setDialogBusy(true);
+        try {
+          await deleteProject(project.id);
+          setDialog(null);
+        } catch (error) {
+          setDialog({ variant: "alert", title: "Could not delete project", message: error.message || "Please try again." });
+        } finally {
+          setDialogBusy(false);
+        }
+      },
+    });
   };
 
   const formatDate = (date) => date
@@ -207,6 +221,17 @@ function Projects() {
           </div>
         </div>
       )}
+
+      <ActionDialog
+        open={Boolean(dialog)}
+        variant={dialog?.variant || "danger"}
+        title={dialog?.title}
+        message={dialog?.message}
+        confirmLabel={dialog?.confirmLabel}
+        busy={dialogBusy}
+        onConfirm={dialog?.onConfirm}
+        onClose={() => { if (!dialogBusy) setDialog(null); }}
+      />
     </div>
   );
 }

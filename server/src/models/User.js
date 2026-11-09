@@ -1,6 +1,11 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
+const notificationPreferencesSchema = new mongoose.Schema({
+  inApp: { type: Boolean, default: true },
+  email: { type: Boolean, default: false },
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 60 },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
@@ -8,6 +13,10 @@ const userSchema = new mongoose.Schema({
   // The role is retained for compatibility; workspace membership is authoritative.
   role: { type: String, enum: ["Administrator", "Member"], default: "Member" },
   activeWorkspace: { type: mongoose.Schema.Types.ObjectId, ref: "Workspace", default: null },
+  notificationPreferences: {
+    type: notificationPreferencesSchema,
+    default: () => ({}),
+  },
 }, { timestamps: true });
 
 userSchema.pre("save", async function () {

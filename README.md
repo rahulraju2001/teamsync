@@ -45,15 +45,17 @@ If your API uses another URL, copy `.env.example` to `.env` in the project root 
 - Dashboard statistics calculated from the user's projects and tasks
 - Project progress calculated from completed tasks
 - Task search, filtering, sorting and pagination
-- Team overview and profile settings UI
+- Team overview and account profile settings persisted through the backend
+- Dashboard greeting uses the authenticated user profile
+- Persistent per-user in-app and email-notification preferences
 - Socket.IO real-time task and project updates
-- Persistent in-app notifications for task creation, updates, deletion and comments
+- Persistent in-app notifications for task assignment, reassignment and comments on assigned tasks
 - Workspace-scoped, JWT-authenticated Socket.IO connections
 
 ## Current limitations
 - Invitations generate shareable links; they are not emailed automatically.
-- File attachments, email delivery for invitations, password reset and email notifications are not implemented.
-- Profile settings are currently stored in the browser rather than persisted through a profile API.
+- File attachments, email delivery for invitations, password reset and outbound email notifications are not implemented.
+- Email notifications are stored as a preference only; outbound email delivery is not configured. Email address changes are disabled in Settings because the address is used for sign-in.
 - Legacy task assignments must be migrated once from initials to User references; ambiguous initials are intentionally converted to Unassigned rather than guessed.
 
 ## Workspace roles and invitations
@@ -62,8 +64,8 @@ TeamSync uses workspace membership for authorization. Each person who registers 
 
 ### Roles
 
-- **Administrator:** rename the workspace; invite, remove and promote/demote members; create, edit and delete projects; edit and delete tasks; assign tasks.
-- **Member:** view workspace projects; create tasks (automatically assigned to themselves); update task statuses; add task comments. Members cannot create/edit/delete projects, delete tasks, edit task details or reassign tasks.
+- **Administrator:** rename the workspace; invite, remove and promote/demote members; create, edit and delete projects and tasks; assign and reassign tasks.
+- **Member:** view all workspace projects and tasks; update the status and add comments only on tasks assigned to them. Members cannot create tasks, edit task details, reassign or delete tasks, or administer projects.
 
 Role checks are enforced by Express middleware and route handlers, not only by hiding frontend controls. A workspace always retains at least one Administrator, and the workspace owner cannot be removed or demoted.
 
@@ -89,7 +91,7 @@ Role checks are enforced by Express middleware and route handlers, not only by h
 
 Socket.IO is used for live task activity. The server authenticates each socket with the same JWT used by the REST API and derives the active workspace from the authenticated user record. Clients cannot choose workspace rooms themselves.
 
-Project creation, updates and deletion, plus task creation, updates, deletion and comments, are broadcast to connected members of the active workspace. Persistent in-app notifications are stored per recipient and workspace and can be marked read individually or all at once.
+Project changes and task changes are broadcast to connected members of the active workspace. Assignment and reassignment notifications go to the affected assignees; comments on assigned tasks notify the assignee when another user comments. Notifications are stored per recipient and workspace and can be marked read individually or all at once.
 
 Install dependencies after pulling or extracting this update:
 
@@ -115,4 +117,17 @@ npm run migrate:assignees
 
 The command uses `server/.env` and its `MONGODB_URI`. Back up your database first. The migration only updates legacy string-valued task `assignee` fields; it does not delete tasks or modify users. After it completes, start the backend normally with `npm run dev`.
 
-Administrators can assign or unassign tasks using the workspace member list. Members who create tasks are automatically assigned those tasks themselves. Task API responses populate the assignee's name and email, while the database stores only the User ObjectId reference.
+Administrators can assign or unassign tasks using the workspace member list. Task API responses populate the assignee's name and email, while the database stores only the User ObjectId reference.
+
+## Task permissions and notifications
+
+- All workspace members can view all workspace tasks.
+- Administrators can create, edit, assign/reassign, and delete any task.
+- Members can change the status and add comments only on tasks assigned to them.
+- Members cannot create tasks or edit task details, priority, due date, or assignment.
+- Newly assigned users receive a persisted in-app notification. On reassignment, both the previous and new assignees are notified (unless the actor is the recipient).
+- When another user comments on an assigned task, its assignee receives a persisted in-app notification.
+- Notifications are stored in MongoDB and delivered live through Socket.IO when the recipient has enabled in-app notifications.
+- Each user can persistently enable or disable in-app notifications and save an email-notification preference in Settings. The email preference does not send email until an email provider is configured.
+
+These permissions are enforced by the Express API as well as reflected in the React interface.

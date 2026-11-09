@@ -209,7 +209,7 @@ function Navbar({ isCollapsed, setIsCollapsed, setIsMobileOpen }) {
             aria-expanded={isProfileOpen}
           >
             <div
-              className="w-9 h-9 rounded-full bg-indigo-500 flex items-center justify-center text-white font-semibold"
+              className="w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold"
               title={currentUser?.name || "User"}
             >
               {userInitials}

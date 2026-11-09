@@ -7,7 +7,16 @@ import { protect } from "../middleware/auth.js";
 
 const router = Router();
 const createToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-const publicUser = (user, role) => ({ id: user._id, name: user.name, email: user.email, role });
+const publicUser = (user, role) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  role,
+  notificationPreferences: {
+    inApp: user.notificationPreferences?.inApp ?? true,
+    email: user.notificationPreferences?.email ?? false,
+  },
+});
 
 router.post("/register", async (req, res) => {
   try {
@@ -75,6 +84,36 @@ router.post("/login", async (req, res) => {
 
 router.get("/me", protect, async (req, res) => {
   res.json({ user: publicUser(req.user, req.membership.role), workspace: { id: req.workspace._id, name: req.workspace.name } });
+});
+
+router.patch("/profile", protect, async (req, res) => {
+  const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+  if (!name) return res.status(400).json({ message: "Name is required." });
+  if (name.length > 60) return res.status(400).json({ message: "Name must be 60 characters or fewer." });
+
+  req.user.name = name;
+  await req.user.save();
+  res.json({ message: "Profile updated successfully.", user: publicUser(req.user, req.membership.role) });
+});
+
+router.patch("/preferences", protect, async (req, res) => {
+  const { inApp, email } = req.body || {};
+  if ((inApp !== undefined && typeof inApp !== "boolean") || (email !== undefined && typeof email !== "boolean")) {
+    return res.status(400).json({ message: "Notification preferences must be boolean values." });
+  }
+
+  if (!req.user.notificationPreferences) req.user.notificationPreferences = { inApp: true, email: false };
+  if (inApp !== undefined) req.user.notificationPreferences.inApp = inApp;
+  if (email !== undefined) req.user.notificationPreferences.email = email;
+  await req.user.save();
+
+  res.json({
+    message: "Notification preferences saved.",
+    notificationPreferences: {
+      inApp: req.user.notificationPreferences.inApp,
+      email: req.user.notificationPreferences.email,
+    },
+  });
 });
 
 export default router;

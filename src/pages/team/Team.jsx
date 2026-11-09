@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Copy, Mail, ShieldCheck, Users, UserMinus, LoaderCircle, Check, RefreshCw } from "lucide-react";
 import { useWorkspace } from "../../context/WorkspaceContext";
+import ActionDialog from "../../components/ui/ActionDialog";
 
 function Team() {
   const {
@@ -15,6 +16,8 @@ function Team() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState(null);
+  const [dialogBusy, setDialogBusy] = useState(false);
 
   useEffect(() => {
     refreshWorkspace()
@@ -46,11 +49,20 @@ function Team() {
     catch (err) { setError(err.message || "Could not update member role."); }
   };
 
-  const handleRemove = async (member) => {
-    if (!window.confirm(`Remove ${member.name} from this workspace?`)) return;
-    setError(""); setNotice("");
-    try { await removeMember(member.id); setNotice(`${member.name} was removed from the workspace.`); }
-    catch (err) { setError(err.message || "Could not remove member."); }
+  const handleRemove = (member) => setPendingRemoval(member);
+
+  const confirmRemove = async () => {
+    if (!pendingRemoval) return;
+    setError(""); setNotice(""); setDialogBusy(true);
+    try {
+      await removeMember(pendingRemoval.id);
+      setNotice(`${pendingRemoval.name} was removed from the workspace.`);
+      setPendingRemoval(null);
+    } catch (err) {
+      setPendingRemoval({ ...pendingRemoval, dialogError: err.message || "Could not remove member." });
+    } finally {
+      setDialogBusy(false);
+    }
   };
 
   const handleRename = async (event) => {
@@ -108,10 +120,21 @@ function Team() {
 
       <section className="rounded-xl border border-border bg-white p-5">
         <div className="mb-3 flex items-center gap-2"><ShieldCheck size={18} className="text-primary-600" /><h2 className="font-semibold text-heading">Workspace permissions</h2></div>
-        <div className="grid gap-4 sm:grid-cols-2"><div className="rounded-lg bg-amber-50 p-4"><p className="font-semibold text-amber-800">Administrator</p><p className="mt-1 text-sm text-amber-900">Manage workspace settings, invite and remove members, change roles, and create, edit or delete projects and tasks.</p></div><div className="rounded-lg bg-slate-50 p-4"><p className="font-semibold text-slate-800">Member</p><p className="mt-1 text-sm text-slate-600">View shared projects, create tasks, update task status and participate in task discussions. Project administration and destructive actions are restricted.</p></div></div>
+        <div className="grid gap-4 sm:grid-cols-2"><div className="rounded-lg bg-amber-50 p-4"><p className="font-semibold text-amber-800">Administrator</p><p className="mt-1 text-sm text-amber-900">Manage workspace settings, invite and remove members, change roles, and create, edit or delete projects and tasks.</p></div><div className="rounded-lg bg-slate-50 p-4"><p className="font-semibold text-slate-800">Member</p><p className="mt-1 text-sm text-slate-600">View all shared projects and tasks. Update the status and comment only on tasks assigned to you. Task creation, editing, assignment and deletion are restricted to Administrators.</p></div></div>
       </section>
 
       {isAdmin && <section className="rounded-xl border border-border bg-white p-5"><h2 className="font-semibold text-heading">Workspace settings</h2><form onSubmit={handleRename} className="mt-3 flex flex-col gap-2 sm:flex-row"><input value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} maxLength={80} required className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2.5 text-sm" /><button className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-body hover:bg-slate-50">Save name</button></form></section>}
+
+      <ActionDialog
+        open={Boolean(pendingRemoval)}
+        variant={pendingRemoval?.dialogError ? "alert" : "danger"}
+        title={pendingRemoval?.dialogError ? "Could not remove member" : "Remove workspace member?"}
+        message={pendingRemoval?.dialogError || (pendingRemoval ? `Are you sure you want to remove ${pendingRemoval.name} from this workspace? They will lose access to its projects and tasks.` : "")}
+        confirmLabel="Remove member"
+        busy={dialogBusy}
+        onConfirm={confirmRemove}
+        onClose={() => { if (!dialogBusy) setPendingRemoval(null); }}
+      />
     </div>
   );
 }

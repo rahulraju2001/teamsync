@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "../../context/WorkspaceContext";
+import ActionDialog from "../ui/ActionDialog";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -26,6 +27,8 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
   const [workspaceError, setWorkspaceError] = useState("");
+  const [workspaceAction, setWorkspaceAction] = useState(null);
+  const [workspaceActionBusy, setWorkspaceActionBusy] = useState(false);
 
   const {
     workspaceInfo,
@@ -33,6 +36,7 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
     workspaces,
     switchWorkspace,
     createWorkspace,
+    leaveWorkspace,
   } = useWorkspace();
 
   const userId = currentUser?._id || currentUser?.id;
@@ -43,6 +47,12 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
       : workspace.owner;
 
   const activeWorkspaceId = workspaceInfo?._id || workspaceInfo?.id;
+  const activeWorkspaceOwnerId =
+    typeof workspaceInfo?.owner === "object"
+      ? workspaceInfo.owner?._id
+      : workspaceInfo?.owner;
+  const isWorkspaceOwner =
+    Boolean(userId) && String(activeWorkspaceOwnerId) === String(userId);
 
   const uniqueWorkspaces = Array.from(
     new Map(
@@ -125,7 +135,7 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
       icon: FolderKanban,
     },
     {
-      name: "My Tasks",
+      name: "Tasks",
       path: "/tasks",
       icon: CheckSquare,
     },
@@ -193,6 +203,26 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
     setCreateOpen(false);
     setWorkspaceName("");
     setWorkspaceError("");
+  };
+
+  const handleWorkspaceAction = async () => {
+    if (!workspaceAction) return;
+
+    try {
+      setWorkspaceActionBusy(true);
+      setWorkspaceError("");
+
+      await leaveWorkspace();
+
+      setWorkspaceAction(null);
+      setWorkspaceOpen(false);
+      setIsMobileOpen(false);
+      navigate("/dashboard", { replace: true });
+    } catch (error) {
+      setWorkspaceError(error.message || "Could not complete this workspace action.");
+    } finally {
+      setWorkspaceActionBusy(false);
+    }
   };
 
   return (
@@ -272,6 +302,38 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
                 </p>
               )}
 
+              {/* Currently selected workspace */}
+              {workspaceInfo && (
+                <div className="mb-2">
+                  <p className="px-2 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+                    Current Workspace
+                  </p>
+                  <div
+                    aria-current="true"
+                    className="w-full flex items-center justify-between gap-2 p-2 text-sm text-left bg-primary-50 border border-primary-100 rounded-lg"
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="w-7 h-7 shrink-0 rounded-md bg-primary-600 text-white flex items-center justify-center text-xs font-semibold">
+                        {(workspaceInfo.name || "W").charAt(0).toUpperCase()}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-heading">
+                          {workspaceInfo.name || "My Workspace"}
+                        </span>
+                        <span className="block text-xs text-muted">
+                          Currently selected
+                        </span>
+                      </span>
+                    </span>
+                    <Check
+                      size={16}
+                      aria-label="Selected workspace"
+                      className="text-primary-600 shrink-0"
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Owned workspaces */}
               {ownedWorkspaces.length > 0 && (
                 <>
@@ -334,6 +396,46 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
                 <p className="px-2 py-2 text-xs text-muted">
                   No workspaces found.
                 </p>
+              )}
+
+              {workspaceInfo && (
+                <div className="border-t border-border mt-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWorkspaceOpen(false);
+                      setIsMobileOpen(false);
+                      navigate("/workspace/settings");
+                    }}
+                    className="w-full flex items-center gap-2 p-2 text-sm text-primary-700 hover:bg-primary-50 rounded"
+                  >
+                    <Settings size={16} />
+                    Workspace Settings
+                  </button>
+                  {isWorkspaceOwner ? (
+                    <button
+                      type="button"
+                      disabled
+                      title="Transfer ownership in Workspace Settings before leaving this workspace."
+                      className="w-full flex items-center gap-2 p-2 text-sm text-muted rounded cursor-not-allowed"
+                    >
+                      <LogOut size={16} />
+                      Leave Workspace (owner)
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWorkspaceError("");
+                        setWorkspaceAction("leave");
+                      }}
+                      className="w-full flex items-center gap-2 p-2 text-sm text-red-600 hover:bg-red-50 rounded"
+                    >
+                      <LogOut size={16} />
+                      Leave Workspace
+                    </button>
+                  )}
+                </div>
               )}
 
               <div className="border-t border-border mt-2 pt-2">
@@ -487,7 +589,7 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
           >
             {/* Avatar */}
             <div
-              className="w-9 h-9 shrink-0 rounded-full bg-indigo-500 flex items-center justify-center text-white font-semibold"
+              className="w-9 h-9 shrink-0 rounded-full bg-primary-600 flex items-center justify-center text-white font-semibold"
               title={currentUser?.name || "User"}
             >
               {userInitials}
@@ -586,6 +688,23 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
           </div>
         </div>
       )}
+
+      <ActionDialog
+        open={Boolean(workspaceAction)}
+        variant="danger"
+        title="Leave workspace?"
+        message={`You will be removed from ${workspaceInfo?.name || "this workspace"}. You will lose access to its projects and tasks. You can rejoin only if an Administrator invites you again.`}
+        confirmLabel="Leave workspace"
+        busy={workspaceActionBusy}
+        error={workspaceError}
+        onConfirm={handleWorkspaceAction}
+        onClose={() => {
+          if (!workspaceActionBusy) {
+            setWorkspaceAction(null);
+            setWorkspaceError("");
+          }
+        }}
+      />
     </>
   );
 }
