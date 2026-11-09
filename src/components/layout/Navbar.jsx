@@ -5,7 +5,6 @@ import {
   Bell,
   ChevronDown,
   Menu,
-  User,
   Settings,
   LogOut,
   BellRing,
@@ -13,7 +12,14 @@ import {
 import { useWorkspace } from "../../context/WorkspaceContext";
 
 function Navbar({ isCollapsed, setIsCollapsed, setIsMobileOpen }) {
-  const { currentUser } = useWorkspace();
+  const {
+    currentUser,
+    notifications,
+    unreadNotificationCount,
+    socketConnected,
+    markNotificationRead,
+    markAllNotificationsRead,
+  } = useWorkspace();
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -78,9 +84,12 @@ function Navbar({ isCollapsed, setIsCollapsed, setIsMobileOpen }) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem("workspace-token");
+    localStorage.removeItem("workspace-user");
+    window.dispatchEvent(new Event("workspace-auth-changed"));
     setIsProfileOpen(false);
-    navigate("/login");
+    setIsNotificationsOpen(false);
+    navigate("/login", { replace: true });
   };
 
   const handleSettings = () => {
@@ -124,40 +133,68 @@ function Navbar({ isCollapsed, setIsCollapsed, setIsMobileOpen }) {
             <Bell size={21} />
           </button>
 
+          {unreadNotificationCount > 0 && (
+            <span className="absolute -right-1 -top-1 min-w-4 h-4 rounded-full bg-red-500 px-1 text-[10px] leading-4 text-white text-center">
+              {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+            </span>
+          )}
+
           {isNotificationsOpen && (
-            <div className="absolute right-0 top-full mt-3 w-80 max-w-[calc(100vw-2rem)] bg-white border border-border rounded-xl shadow-lg z-50">
-              {/* Notification header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                <h3 className="font-semibold text-heading text-sm">
-                  Notifications
-                </h3>
-
-                <span className="text-xs text-muted">
-                  0 unread
-                </span>
-              </div>
-
-              {/* Empty state */}
-              <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
-                <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mb-3">
-                  <BellRing size={22} className="text-indigo-500" />
+            <div className="absolute right-0 top-full mt-3 w-96 max-w-[calc(100vw-2rem)] overflow-hidden bg-white border border-border rounded-xl shadow-lg z-50">
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
+                <div>
+                  <h3 className="font-semibold text-heading text-sm">Notifications</h3>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {socketConnected ? "Live updates connected" : "Live updates reconnecting..."}
+                  </p>
                 </div>
-
-                <p className="text-sm font-medium text-heading">
-                  You're all caught up!
-                </p>
-
-                <p className="text-xs text-muted mt-1 max-w-52">
-                  You don't have any notifications right now.
-                  We'll let you know when something happens.
-                </p>
+                {unreadNotificationCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={markAllNotificationsRead}
+                    className="text-xs font-medium text-primary-600 hover:text-primary-700"
+                  >
+                    Mark all read
+                  </button>
+                )}
               </div>
 
-              {/* Footer */}
-              <div className="border-t border-border px-4 py-3 text-center">
-                <p className="text-xs text-muted">
-                  TeamSync Notifications
-                </p>
+              <div className="max-h-96 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
+                    <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mb-3">
+                      <BellRing size={22} className="text-indigo-500" />
+                    </div>
+                    <p className="text-sm font-medium text-heading">You're all caught up!</p>
+                    <p className="text-xs text-muted mt-1 max-w-52">
+                      We'll let you know when your workspace has task activity.
+                    </p>
+                  </div>
+                ) : (
+                  notifications.map((notification) => (
+                    <button
+                      type="button"
+                      key={notification._id}
+                      onClick={() => {
+                        if (!notification.readAt) markNotificationRead(notification._id);
+                      }}
+                      className={`w-full border-b border-border px-4 py-3 text-left transition hover:bg-slate-50 ${notification.readAt ? "bg-white" : "bg-indigo-50/50"}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${notification.readAt ? "bg-transparent" : "bg-primary-600"}`} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm text-heading">{notification.message}</span>
+                          <span className="mt-1 block text-xs text-muted">
+                            {new Date(notification.createdAt).toLocaleString()}
+                          </span>
+                        </span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+              <div className="border-t border-border px-4 py-2.5 text-center">
+                <p className="text-xs text-muted">TeamSync workspace activity</p>
               </div>
             </div>
           )}
@@ -200,14 +237,6 @@ function Navbar({ isCollapsed, setIsCollapsed, setIsMobileOpen }) {
               </div>
 
               {/* Menu items */}
-              <button
-                onClick={handleSettings}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-body hover:bg-slate-50 transition"
-              >
-                <User size={17} />
-                Profile & Settings
-              </button>
-
               <button
                 onClick={handleSettings}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-body hover:bg-slate-50 transition"

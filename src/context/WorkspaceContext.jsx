@@ -1,4 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { io } from "socket.io-client";
 
 const WorkspaceContext = createContext(null);
 
@@ -144,6 +146,7 @@ const initialTeamMembers = [
 
 const STORAGE_KEY = "workspace-app-data-v1";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const SOCKET_URL = API_URL.replace(/\/api\/?$/, "");
 
 async function apiRequest(path, options = {}) {
   const token = localStorage.getItem("workspace-token");
@@ -168,10 +171,13 @@ const normalizeTask = (task) => ({
   ...task,
   id: task._id || task.id,
   projectId: task.project?._id || task.project || task.projectId,
-  assignee:
-    typeof task.assignee === "string"
-      ? task.assignee
-      : task.assignee?.initials || "R",
+  assignee: task.assignee || null,
+  assigneeId:
+    task.assignee && typeof task.assignee === "object"
+      ? String(task.assignee._id || task.assignee.id)
+      : typeof task.assignee === "string" && /^[a-f0-9]{24}$/i.test(task.assignee)
+        ? task.assignee
+        : null,
   comments: (task.comments || []).map((comment) => ({
     ...comment,
     id: comment._id || comment.id,
@@ -208,6 +214,8 @@ export function WorkspaceProvider({ children }) {
   const [teamMembers, setTeamMembers] = useState(initialTeamMembers);
   const [workspaceInfo, setWorkspaceInfo] = useState(null);
   const [workspaces, setWorkspaces] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [socketConnected, setSocketConnected] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("workspace-user"));
@@ -423,7 +431,7 @@ export function WorkspaceProvider({ children }) {
     }));
   };
 
-  const refreshWorkspace = async () => {
+  const refreshWorkspace = useCallback(async () => {
     const result = await apiRequest("/workspace");
     const members = (result.members || []).map((member) => ({
       ...member,
@@ -447,9 +455,9 @@ export function WorkspaceProvider({ children }) {
       return updated;
     });
     return result;
-  };
+  }, []);
 
-  const refreshWorkspaceData = async () => {
+  const refreshWorkspaceData = useCallback(async () => {
     const [
       projectResult,
       taskResult,
@@ -490,9 +498,10 @@ export function WorkspaceProvider({ children }) {
     setWorkspaces(workspaceListResult.workspaces || []);
     setCurrentUser(meResult.user);
     localStorage.setItem("workspace-user", JSON.stringify(meResult.user));
-  };
+  }, []);
 
   const switchWorkspace = async (workspaceId) => {
+    setNotifications([]);
     await apiRequest(`/workspace/switch/${workspaceId}`, {
       method: "POST",
     });
@@ -501,6 +510,7 @@ export function WorkspaceProvider({ children }) {
   };
 
   const createWorkspace = async (name) => {
+    setNotifications([]);
     const result = await apiRequest("/workspace/create", {
       method: "POST",
       body: JSON.stringify({ name }),
@@ -541,8 +551,84 @@ export function WorkspaceProvider({ children }) {
     setWorkspaceInfo((current) => ({ ...current, ...result.workspace }));
   };
 
-  const value = useMemo(
-    () => ({
+  const refreshNotifications = async () => {
+    if (!token) return;
+    const result = await apiRequest("/notifications");
+    setNotifications(result.notifications || []);
+  };
+
+  const markNotificationRead = async (notificationId) => {
+    await apiRequest(`/notifications/${notificationId}/read`, { method: "PATCH" });
+    setNotifications((current) => current.map((item) =>
+      String(item._id) === String(notificationId)
+        ? { ...item, readAt: item.readAt || new Date().toISOString() }
+        : item,
+    ));
+  };
+
+  const markAllNotificationsRead = async () => {
+    await apiRequest("/notifications/read-all", { method: "PATCH" });
+    const readAt = new Date().toISOString();
+    setNotifications((current) => current.map((item) => ({ ...item, readAt: item.readAt || readAt })));
+  };
+
+  const activeWorkspaceId = workspaceInfo?._id || workspaceInfo?.id;
+
+  useEffect(() => {
+    if (!token || !activeWorkspaceId) return undefined;
+
+    let disposed = false;
+    apiRequest("/notifications")
+      .then((result) => {
+        if (!disposed) {
+          setNotifications((current) => {
+            const merged = new Map((result.notifications || []).map((item) => [String(item._id), item]));
+            current.forEach((item) => merged.set(String(item._id), merged.get(String(item._id)) || item));
+            return [...merged.values()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 100);
+          });
+        }
+      })
+      .catch((error) => console.error("Could not load notifications:", error));
+
+    const socket = io(SOCKET_URL, {
+      auth: { token },
+      reconnection: true,
+    });
+
+    socket.on("connect", () => setSocketConnected(true));
+    socket.on("disconnect", () => setSocketConnected(false));
+    socket.on("connect_error", (error) => {
+      setSocketConnected(false);
+      console.warn("Live connection unavailable:", error.message);
+    });
+    socket.on("workspace:changed", () => {
+      setNotifications([]);
+      refreshWorkspaceData().catch((error) =>
+        console.error("Could not sync the active workspace:", error),
+      );
+    });
+    socket.on("notification:new", (notification) => {
+      setNotifications((current) => [
+        notification,
+        ...current.filter((item) => String(item._id) !== String(notification._id)),
+      ].slice(0, 100));
+    });
+    const syncWorkspaceData = (event) => {
+      if (String(event.workspaceId) !== String(activeWorkspaceId)) return;
+      refreshWorkspaceData().catch((error) =>
+        console.error("Could not sync live workspace changes:", error),
+      );
+    };
+    socket.on("task:changed", syncWorkspaceData);
+    socket.on("project:changed", syncWorkspaceData);
+
+    return () => {
+      disposed = true;
+      socket.disconnect();
+    };
+  }, [token, activeWorkspaceId, refreshWorkspaceData]);
+
+  const value = {
       projects: data.projects,
       tasks: data.tasks,
       teamMembers,
@@ -559,6 +645,12 @@ export function WorkspaceProvider({ children }) {
       workspaces,
       switchWorkspace,
       createWorkspace,
+      notifications,
+      unreadNotificationCount: notifications.filter((item) => !item.readAt).length,
+      socketConnected,
+      refreshNotifications,
+      markNotificationRead,
+      markAllNotificationsRead,
       addProject,
       updateProject,
       deleteProject,
@@ -566,9 +658,7 @@ export function WorkspaceProvider({ children }) {
       updateTask,
       deleteTask,
       addComment,
-    }),
-    [data, token, teamMembers, workspaceInfo, currentUser, workspaces],
-  );
+  };
 
   return (
     <WorkspaceContext.Provider value={value}>

@@ -40,7 +40,7 @@ router.get("/list", async (req, res) => {
     });
 
     res.json({ workspaces: result });
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: "Could not load workspaces." });
   }
 });
@@ -76,6 +76,9 @@ router.post("/create", async (req, res) => {
     req.user.activeWorkspace = workspace._id;
     req.user.role = "Administrator";
     await req.user.save();
+    req.app.get("io")?.to(`user:${String(req.user._id)}`).emit("workspace:changed", {
+      workspaceId: String(workspace._id),
+    });
 
     res.status(201).json({
       message: "Workspace created successfully.",
@@ -86,7 +89,7 @@ router.post("/create", async (req, res) => {
         role: "Administrator",
       },
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: "Could not create workspace." });
   }
 });
@@ -112,6 +115,9 @@ router.post("/switch/:workspaceId", async (req, res) => {
     req.user.activeWorkspace = workspace._id;
     req.user.role = membership.role;
     await req.user.save();
+    req.app.get("io")?.to(`user:${String(req.user._id)}`).emit("workspace:changed", {
+      workspaceId: String(workspace._id),
+    });
 
     res.json({
       message: "Workspace switched successfully.",
@@ -122,7 +128,7 @@ router.post("/switch/:workspaceId", async (req, res) => {
         role: membership.role,
       },
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: "Could not switch workspace." });
   }
 });
@@ -240,6 +246,9 @@ router.post("/invitations/accept", async (req, res) => {
   req.user.activeWorkspace = workspace._id;
   req.user.role = "Member";
   await req.user.save({ validateBeforeSave: false });
+  req.app.get("io")?.to(`user:${String(req.user._id)}`).emit("workspace:changed", {
+    workspaceId: String(workspace._id),
+  });
   res.json({
     message: `You joined ${workspace.name}.`,
     workspace: { id: workspace._id, name: workspace.name },
@@ -324,6 +333,13 @@ router.delete(
     if (user && String(user.activeWorkspace) === String(req.workspace._id))
       user.activeWorkspace = null;
     if (user) await user.save({ validateBeforeSave: false });
+
+    const io = req.app.get("io");
+    if (io && user) {
+      io.to(`user:${String(user._id)}`).emit("workspace:changed", { workspaceId: null });
+      io.in(`user:${String(user._id)}:workspace:${String(req.workspace._id)}`)
+        .disconnectSockets(true);
+    }
     res.json({ message: "Member removed from workspace." });
   },
 );

@@ -7,16 +7,18 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 function AcceptInvitation() {
   const { token } = useParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState("working");
-  const [message, setMessage] = useState("Checking your invitation...");
+  const [status, setStatus] = useState(() =>
+    localStorage.getItem("workspace-token") ? "working" : "login",
+  );
+  const [message, setMessage] = useState(() =>
+    localStorage.getItem("workspace-token")
+      ? "Checking your invitation..."
+      : "Sign in or create an account using the email address this invitation was sent to, then open this invitation link again.",
+  );
 
   useEffect(() => {
     const authToken = localStorage.getItem("workspace-token");
-    if (!authToken) {
-      setStatus("login");
-      setMessage("Sign in or create an account using the email address this invitation was sent to, then open this invitation link again.");
-      return;
-    }
+    if (!authToken) return;
     let cancelled = false;
     fetch(`${API_URL}/workspace/invitations/accept`, {
       method: "POST",

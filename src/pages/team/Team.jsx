@@ -20,9 +20,11 @@ function Team() {
     refreshWorkspace()
       .catch((err) => setError(err.message || "Could not load workspace members."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshWorkspace]);
 
   useEffect(() => {
+    // Keep the editable input in sync when the selected workspace changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setWorkspaceName(workspaceInfo?.name || "");
   }, [workspaceInfo?.name]);
 
@@ -79,7 +81,7 @@ function Team() {
         {loading ? <div className="flex items-center gap-2 py-8 text-sm text-muted"><LoaderCircle size={18} className="animate-spin" />Loading team...</div> : teamMembers.length === 0 ? <p className="py-6 text-sm text-muted">No members found.</p> : (
           <div className="divide-y divide-border">
             {teamMembers.map((member) => {
-              const assigned = tasks.filter((task) => task.assignee === member.initials);
+              const assigned = tasks.filter((task) => task.assigneeId === String(member.id) || (typeof task.assignee === "object" && String(task.assignee?._id) === String(member.id)) || task.assignee === member.initials);
               const completed = assigned.filter((task) => task.status === "Completed").length;
               const isSelf = String(member.id) === String(currentUser?.id);
               return <div key={member.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">

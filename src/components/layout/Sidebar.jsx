@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import {
   LayoutDashboard,
@@ -23,6 +23,8 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
   const [workspaceName, setWorkspaceName] = useState("");
   const [creating, setCreating] = useState(false);
   const [switchingId, setSwitchingId] = useState(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
   const [workspaceError, setWorkspaceError] = useState("");
 
   const {
@@ -40,8 +42,8 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
       ? workspace.owner?._id
       : workspace.owner;
 
-  const activeWorkspaceId = workspaceInfo?._id;
-  
+  const activeWorkspaceId = workspaceInfo?._id || workspaceInfo?.id;
+
   const uniqueWorkspaces = Array.from(
     new Map(
       (workspaces || []).map((workspace) => [String(workspace._id), workspace]),
@@ -68,6 +70,48 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
       .join("")
       .slice(0, 2)
       .toUpperCase() || "U";
+
+  // Close profile menu when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!profileMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!profileMenuRef.current?.contains(event.target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [profileMenuOpen]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("workspace-token");
+    localStorage.removeItem("workspace-user");
+
+    window.dispatchEvent(new Event("workspace-auth-changed"));
+
+    setProfileMenuOpen(false);
+    navigate("/login", { replace: true });
+  };
+
+  const handleSettings = () => {
+    setProfileMenuOpen(false); // Close the dropdown
+    navigate("/settings");
+  };
 
   const navItems = [
     {
@@ -371,17 +415,77 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
           </div>
         </nav>
 
-        {/* User profile */}
+        {/* User profile and dropdown */}
         <div
-          className={`p-4 border-t border-border ${
+          ref={profileMenuRef}
+          className={`relative p-4 border-t border-border ${
             isCollapsed ? "flex justify-center" : ""
           }`}
         >
-          <div
-            className={`flex items-center ${
-              isCollapsed ? "flex-col gap-3" : "justify-between gap-3"
+          {/* Profile dropdown */}
+          {profileMenuOpen && (
+            <div
+              className={`absolute bottom-full mb-2 rounded-xl border border-border bg-white py-2 shadow-lg z-[60] ${
+                isCollapsed ? "left-full ml-2 w-64" : "left-4 right-4"
+              }`}
+              role="menu"
+              aria-label="Profile menu"
+            >
+              {/* User information */}
+              <div className="px-4 py-3 border-b border-border">
+                <p className="text-sm font-semibold text-heading truncate">
+                  {currentUser?.name || "User"}
+                </p>
+
+                {currentUser?.email && (
+                  <p className="mt-0.5 text-xs text-muted truncate">
+                    {currentUser.email}
+                  </p>
+                )}
+
+                <p className="mt-1 text-xs text-muted">
+                  {workspaceInfo?.role || currentUser?.role || "Member"}
+                </p>
+              </div>
+
+              {/* Profile and settings */}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleSettings}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-body hover:bg-slate-50 hover:text-heading"
+              >
+                <Settings size={17} />
+                Account Settings
+              </button>
+
+              <div className="my-1 border-t border-border" />
+
+              {/* Sign out */}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+              >
+                <LogOut size={17} />
+                Sign Out
+              </button>
+            </div>
+          )}
+
+          {/* Clickable profile section */}
+          <button
+            type="button"
+            onClick={() => setProfileMenuOpen((open) => !open)}
+            className={`w-full flex items-center rounded-lg p-2 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+              isCollapsed ? "justify-center" : "gap-3"
             }`}
+            aria-label="Open profile menu"
+            aria-haspopup="menu"
+            aria-expanded={profileMenuOpen}
           >
+            {/* Avatar */}
             <div
               className="w-9 h-9 shrink-0 rounded-full bg-indigo-500 flex items-center justify-center text-white font-semibold"
               title={currentUser?.name || "User"}
@@ -389,33 +493,28 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
               {userInitials}
             </div>
 
+            {/* Name and role */}
             {!isCollapsed && (
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-heading font-medium truncate">
-                  {currentUser?.name || "User"}
-                </p>
+              <>
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="text-sm text-heading font-medium truncate">
+                    {currentUser?.name || "User"}
+                  </p>
 
-                <p className="text-xs text-muted">
-                  {workspaceInfo?.role || currentUser?.role || "Member"}
-                </p>
-              </div>
+                  <p className="text-xs text-muted">
+                    {workspaceInfo?.role || currentUser?.role || "Member"}
+                  </p>
+                </div>
+
+                <ChevronDown
+                  size={16}
+                  className={`text-muted transition-transform ${
+                    profileMenuOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </>
             )}
-
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem("workspace-token");
-                localStorage.removeItem("workspace-user");
-                window.dispatchEvent(new Event("workspace-auth-changed"));
-                navigate("/login");
-              }}
-              className="rounded-lg p-2 text-muted hover:bg-red-50 hover:text-red-600"
-              title="Sign out"
-              aria-label="Sign out"
-            >
-              <LogOut size={18} />
-            </button>
-          </div>
+          </button>
         </div>
       </aside>
 
