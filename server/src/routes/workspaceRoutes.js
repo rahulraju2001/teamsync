@@ -20,7 +20,7 @@ const memberView = (member) => ({
 });
 
 // Get all workspaces the current user belongs to
-router.get("/list", async (req, res) => {
+router.get("/list", async (req, res, next) => {
   try {
     const workspaces = await Workspace.find({
       "members.user": req.user._id,
@@ -44,13 +44,13 @@ router.get("/list", async (req, res) => {
     });
 
     res.json({ workspaces: result });
-  } catch {
-    res.status(500).json({ message: "Could not load workspaces." });
+  } catch (error) {
+    return next(error);
   }
 });
 
 // Create a new workspace
-router.post("/create", async (req, res) => {
+router.post("/create", async (req, res, next) => {
   try {
     const name = req.body.name?.trim();
 
@@ -93,13 +93,13 @@ router.post("/create", async (req, res) => {
         role: "Administrator",
       },
     });
-  } catch {
-    res.status(500).json({ message: "Could not create workspace." });
+  } catch (error) {
+    return next(error);
   }
 });
 
 // Switch the current user's active workspace
-router.post("/switch/:workspaceId", async (req, res) => {
+router.post("/switch/:workspaceId", async (req, res, next) => {
   try {
     const workspace = await Workspace.findOne({
       _id: req.params.workspaceId,
@@ -132,104 +132,21 @@ router.post("/switch/:workspaceId", async (req, res) => {
         role: membership.role,
       },
     });
-  } catch {
-    res.status(500).json({ message: "Could not switch workspace." });
-  }
-});
-
-
-// Transfer workspace ownership to another existing Administrator.
-// The previous owner remains an Administrator after the transfer.
-router.post("/transfer-ownership", async (req, res) => {
-  try {
-    const workspace = req.workspace;
-    const currentUserId = String(req.user._id);
-    const newOwnerId = String(req.body.userId || "");
-
-    if (String(workspace.owner) !== currentUserId) {
-      return res.status(403).json({
-        message: "Only the current workspace owner can transfer ownership.",
-      });
-    }
-
-    if (!newOwnerId || newOwnerId === currentUserId) {
-      return res.status(400).json({
-        message: "Choose another workspace Administrator.",
-      });
-    }
-
-    const newOwnerMembership = workspace.members.find(
-      (member) => String(member.user) === newOwnerId,
-    );
-
-    if (!newOwnerMembership) {
-      return res.status(404).json({
-        message: "The selected user is not a member of this workspace.",
-      });
-    }
-
-    if (newOwnerMembership.role !== "Administrator") {
-      return res.status(400).json({
-        message: "Ownership can only be transferred to another Administrator. Promote this member first.",
-      });
-    }
-
-    const previousOwnerMembership = workspace.members.find(
-      (member) => String(member.user) === currentUserId,
-    );
-    if (previousOwnerMembership) previousOwnerMembership.role = "Administrator";
-    newOwnerMembership.role = "Administrator";
-    workspace.owner = newOwnerMembership.user;
-    await workspace.save();
-
-    // User.role mirrors the role in the currently active workspace.
-    await User.updateMany(
-      {
-        _id: { $in: [req.user._id, newOwnerMembership.user] },
-        activeWorkspace: workspace._id,
-      },
-      { $set: { role: "Administrator" } },
-    );
-
-    const io = req.app.get("io");
-    const event = {
-      workspaceId: String(workspace._id),
-      ownerId: newOwnerId,
-      previousOwnerId: currentUserId,
-      action: "ownership_transferred",
-    };
-    io?.to(`workspace:${String(workspace._id)}`).emit("workspace:changed", event);
-    // The new owner may currently have another workspace selected, so notify
-    // their user room as well to refresh the workspace switcher.
-    io?.to(`user:${newOwnerId}`).emit("workspace:changed", event);
-    await createNotifications(req, {
-      recipientIds: [newOwnerId],
-      type: "workspace_ownership_transferred",
-      message: `${req.user.name} transferred ownership of ${workspace.name} to you`,
-    });
-
-    return res.json({
-      message: "Workspace ownership transferred successfully.",
-      ownerId: newOwnerId,
-    });
   } catch (error) {
-    console.error("Workspace ownership transfer failed:", error);
-    return res.status(500).json({
-      message: "Could not transfer workspace ownership.",
-    });
+    return next(error);
   }
 });
 
-// Leave the active workspace. Owners must transfer ownership before leaving,
-// and the last Administrator cannot leave while the workspace still exists.
-router.post("/leave", async (req, res) => {
+
+// Leave the active workspace. The fixed workspace owner cannot leave, and the last Administrator must remain.
+router.post("/leave", async (req, res, next) => {
   try {
     const workspace = req.workspace;
     const userId = String(req.user._id);
 
     if (String(workspace.owner) === userId) {
       return res.status(400).json({
-        message: "Workspace owners cannot leave. Transfer ownership to another Administrator first.",
+        message: "Workspace owners cannot leave their workspace. Delete the workspace if you no longer need it.",
       });
     }
 
@@ -289,14 +206,13 @@ router.post("/leave", async (req, res) => {
       workspace: { _id: nextWorkspace._id, name: nextWorkspace.name, role: req.user.role },
     });
   } catch (error) {
-    console.error("Workspace leave failed:", error);
-    return res.status(500).json({ message: "Could not leave this workspace." });
+    return next(error);
   }
 });
 
 // Delete a workspace and all project/task/notification data belonging to it.
 // Only the recorded workspace owner may perform this operation.
-router.delete("/", async (req, res) => {
+router.delete("/", async (req, res, next) => {
   try {
     const workspace = req.workspace;
     if (String(workspace.owner) !== String(req.user._id)) {
@@ -360,8 +276,7 @@ router.delete("/", async (req, res) => {
 
     return res.json({ message: "Workspace and all its projects, tasks, and notifications were deleted." });
   } catch (error) {
-    console.error("Workspace deletion failed:", error);
-    return res.status(500).json({ message: "Could not delete this workspace." });
+    return next(error);
   }
 });
 

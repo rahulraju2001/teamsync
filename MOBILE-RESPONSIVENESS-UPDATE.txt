@@ -1,0 +1,5 @@
+MOBILE RESPONSIVENESS UPDATE
+
+1. Kanban board: added a per-card status selector for touchscreens while retaining desktop drag-and-drop.
+2. Dialogs: added viewport-bounded height and internal vertical scrolling to task/project dialogs, shared action dialogs, and the create-workspace dialog; reduced padding on narrow screens.
+3. Main layout: reduced page padding on small screens and retained larger spacing from the sm breakpoint upward.

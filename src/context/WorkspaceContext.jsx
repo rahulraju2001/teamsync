@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { io } from "socket.io-client";
+import { getFriendlyErrorMessage } from "../utils/errorMessages";
 
 const WorkspaceContext = createContext(null);
 
@@ -9,14 +10,19 @@ const SOCKET_URL = API_URL.replace(/\/api\/?$/, "");
 
 async function apiRequest(path, options = {}) {
   const token = localStorage.getItem("workspace-token");
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
-  });
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+    });
+  } catch (error) {
+    throw new Error(getFriendlyErrorMessage(error, "Unable to complete the request."));
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.message || "API request failed.");
   return data;
@@ -353,15 +359,6 @@ export function WorkspaceProvider({ children }) {
     await refreshWorkspaceData();
   };
 
-  const transferWorkspaceOwnership = async (userId) => {
-    const result = await apiRequest("/workspace/transfer-ownership", {
-      method: "POST",
-      body: JSON.stringify({ userId }),
-    });
-    await refreshWorkspaceData();
-    return result;
-  };
-
   const deleteWorkspace = async () => {
     await apiRequest("/workspace", { method: "DELETE" });
     setNotifications([]);
@@ -385,19 +382,6 @@ export function WorkspaceProvider({ children }) {
     localStorage.setItem("workspace-user", JSON.stringify(result.user));
     await refreshWorkspaceData();
     return result.user;
-  };
-
-  const updateNotificationPreferences = async (preferences) => {
-    const result = await apiRequest("/auth/preferences", {
-      method: "PATCH",
-      body: JSON.stringify(preferences),
-    });
-    setCurrentUser((current) => {
-      const updated = current ? { ...current, notificationPreferences: result.notificationPreferences } : current;
-      if (updated) localStorage.setItem("workspace-user", JSON.stringify(updated));
-      return updated;
-    });
-    return result.notificationPreferences;
   };
 
   const refreshNotifications = async () => {
@@ -461,7 +445,7 @@ export function WorkspaceProvider({ children }) {
         String(event.workspaceId || "") === String(activeWorkspaceId) &&
         !event.previousWorkspaceId &&
         event.action !== "deleted";
-      if (!sameWorkspaceEvent && event.action !== "ownership_transferred" && !deletedDifferentWorkspace) {
+      if (!sameWorkspaceEvent && !deletedDifferentWorkspace) {
         setNotifications([]);
       }
       refreshWorkspaceData().catch((error) =>
@@ -502,7 +486,6 @@ export function WorkspaceProvider({ children }) {
       workspaceInfo,
       currentUser,
       updateProfile,
-      updateNotificationPreferences,
       isAdmin: workspaceInfo
         ? workspaceInfo.role === "Administrator"
         : currentUser?.role === "Administrator",
@@ -512,7 +495,6 @@ export function WorkspaceProvider({ children }) {
       removeMember,
       renameWorkspace,
       leaveWorkspace,
-      transferWorkspaceOwnership,
       deleteWorkspace,
       workspaces,
       switchWorkspace,

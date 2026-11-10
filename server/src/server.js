@@ -35,9 +35,35 @@ app.use("/api/workspace", workspaceRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 app.use((error, _req, res, next) => {
-  void next;
+  // Invalid JSON is rejected by express.json before it reaches a route.
+  if (error.type === "entity.parse.failed") {
+    return res.status(400).json({ message: "Request body contains invalid JSON." });
+  }
+  if (error.type === "entity.too.large") {
+    return res.status(413).json({ message: "Request body is too large." });
+  }
+
+  // Treat database validation/casting failures as invalid client input rather
+  // than unexpected server failures.
+  if (error.name === "ValidationError") {
+    const messages = Object.values(error.errors || {}).map((item) => item.message);
+    return res.status(400).json({ message: messages.join(" ") || "Submitted data is invalid." });
+  }
+  if (error.name === "CastError") {
+    return res.status(400).json({ message: `Invalid value for ${error.path || "a submitted field"}.` });
+  }
+  if (error.code === 11000) {
+    return res.status(409).json({ message: "A record with that value already exists." });
+  }
+
   console.error(error);
-  res.status(error.status || 500).json({ message: error.message || "Internal server error." });
+  const status = Number.isInteger(error.status) && error.status >= 400 && error.status < 600
+    ? error.status
+    : 500;
+  const message = status === 500 && process.env.NODE_ENV !== "development"
+    ? "Internal server error."
+    : (error.message || "Internal server error.");
+  return res.status(status).json({ message });
 });
 
 const port = process.env.PORT || 5000;

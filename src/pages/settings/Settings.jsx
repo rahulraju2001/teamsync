@@ -1,22 +1,14 @@
 import { useState } from "react";
-import { Save, UserRound, Bell } from "lucide-react";
+import { Save, UserRound } from "lucide-react";
 import { useWorkspace } from "../../context/WorkspaceContext";
 
-const defaultPreferences = { inApp: true, email: false, dueSoon: { enabled: true, daysBefore: [3, 1, 0] } };
-
 function Settings() {
-  const { currentUser, updateProfile, updateNotificationPreferences } = useWorkspace();
+  const { currentUser, updateProfile } = useWorkspace();
   const [nameDraft, setNameDraft] = useState(null);
-  const [preferencesDraft, setPreferencesDraft] = useState(null);
   const name = nameDraft ?? currentUser?.name ?? "";
-  const storedPreferences = currentUser?.notificationPreferences ?? defaultPreferences;
-  const preferences = preferencesDraft ?? { ...defaultPreferences, ...storedPreferences, dueSoon: { ...defaultPreferences.dueSoon, ...(storedPreferences.dueSoon || {}) } };
   const [profileSaving, setProfileSaving] = useState(false);
-  const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
-  const [preferencesMessage, setPreferencesMessage] = useState("");
   const [error, setError] = useState("");
-
 
   const handleProfileSave = async (event) => {
     event.preventDefault();
@@ -34,48 +26,11 @@ function Settings() {
     }
   };
 
-  const handlePreferenceChange = async (key, value) => {
-    const nextPreferences = { ...preferences, [key]: value };
-    setPreferencesDraft(nextPreferences);
-    setPreferencesSaving(true);
-    setPreferencesMessage("");
-    setError("");
-    try {
-      await updateNotificationPreferences({ [key]: value });
-      setPreferencesDraft(null);
-      setPreferencesMessage("Notification preferences saved.");
-    } catch (saveError) {
-      setPreferencesDraft(null);
-      setError(saveError.message || "Could not save notification preferences.");
-    } finally {
-      setPreferencesSaving(false);
-    }
-  };
-
-  const handleDueSoonChange = async (updates) => {
-    const dueSoon = { ...preferences.dueSoon, ...updates };
-    const nextPreferences = { ...preferences, dueSoon };
-    setPreferencesDraft(nextPreferences);
-    setPreferencesSaving(true);
-    setPreferencesMessage("");
-    setError("");
-    try {
-      await updateNotificationPreferences({ dueSoon });
-      setPreferencesDraft(null);
-      setPreferencesMessage("Reminder preferences saved.");
-    } catch (saveError) {
-      setPreferencesDraft(null);
-      setError(saveError.message || "Could not save reminder preferences.");
-    } finally {
-      setPreferencesSaving(false);
-    }
-  };
-
   return (
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-heading">Settings</h1>
-        <p className="mt-1 text-sm text-muted">Manage your profile and notification preferences.</p>
+        <p className="mt-1 text-sm text-muted">Manage your account information.</p>
       </div>
 
       <form onSubmit={handleProfileSave} className="rounded-xl border border-border bg-white p-5 sm:p-6">
@@ -123,56 +78,6 @@ function Settings() {
           </button>
         </div>
       </form>
-
-      <section className="rounded-xl border border-border bg-white p-5 sm:p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Bell size={19} className="text-primary-600" />
-          <h2 className="font-semibold text-heading">Notifications</h2>
-        </div>
-        <div className="space-y-5">
-          <label className="flex cursor-pointer items-center justify-between gap-4">
-            <span>
-              <span className="block text-sm font-medium text-heading">In-app notifications</span>
-              <span className="mt-1 block text-xs text-muted">Receive task, project, workspace, and overdue notifications in TeamSync.</span>
-            </span>
-            <input type="checkbox" checked={preferences.inApp} disabled={preferencesSaving} onChange={(event) => handlePreferenceChange("inApp", event.target.checked)} className="h-4 w-4 accent-indigo-600" />
-          </label>
-          <div className="border-t border-border pt-5">
-            <label className="flex cursor-pointer items-center justify-between gap-4">
-              <span>
-                <span className="block text-sm font-medium text-heading">Due-soon reminders</span>
-                <span className="mt-1 block text-xs text-muted">Get in-app reminders for assigned tasks and projects you own or administer.</span>
-              </span>
-              <input type="checkbox" checked={preferences.dueSoon.enabled} disabled={preferencesSaving} onChange={(event) => handleDueSoonChange({ enabled: event.target.checked })} className="h-4 w-4 accent-indigo-600" />
-            </label>
-            <div className={`mt-4 flex flex-wrap gap-x-6 gap-y-3 ${preferences.dueSoon.enabled ? "" : "opacity-50"}`}>
-              {[{ value: 3, label: "3 days before" }, { value: 1, label: "1 day before" }, { value: 0, label: "On the due date" }].map((option) => (
-                <label key={option.value} className="flex items-center gap-2 text-sm text-body">
-                  <input type="checkbox" checked={preferences.dueSoon.daysBefore.includes(option.value)} disabled={preferencesSaving || !preferences.dueSoon.enabled} onChange={(event) => {
-                    const daysBefore = event.target.checked
-                      ? [...preferences.dueSoon.daysBefore, option.value].sort((a, b) => b - a)
-                      : preferences.dueSoon.daysBefore.filter((day) => day !== option.value);
-                    handleDueSoonChange({ daysBefore });
-                  }} className="h-4 w-4 accent-indigo-600" />
-                  {option.label}
-                </label>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-muted">These settings apply to future reminder delivery. Already delivered notifications remain in your history.</p>
-          </div>
-          <div className="border-t border-border pt-5">
-            <label className="flex cursor-pointer items-center justify-between gap-4">
-              <span>
-                <span className="block text-sm font-medium text-heading">Email notifications</span>
-                <span className="mt-1 block text-xs text-muted">Save your preference for future email notifications.</span>
-              </span>
-              <input type="checkbox" checked={preferences.email} disabled={preferencesSaving} onChange={(event) => handlePreferenceChange("email", event.target.checked)} className="h-4 w-4 accent-indigo-600" />
-            </label>
-            <p className="mt-2 text-xs text-muted">Email delivery is not configured yet. This preference is saved to your account but does not send emails.</p>
-          </div>
-        </div>
-        <p role="status" className="mt-4 text-sm text-green-700">{preferencesSaving ? "Saving preferences..." : preferencesMessage}</p>
-      </section>
 
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
     </div>

@@ -9,7 +9,7 @@ const notificationSchema = new mongoose.Schema({
     enum: [
       "task_created", "task_updated", "task_deleted", "task_commented", "task_assigned", "task_reassigned",
       "task_status_changed", "task_overdue", "task_due_soon", "project_created", "project_updated", "project_deleted",
-      "project_overdue", "project_due_soon", "workspace_role_changed", "workspace_ownership_transferred", "workspace_renamed",
+      "project_overdue", "project_due_soon", "workspace_role_changed", "workspace_member_left", "workspace_renamed",
     ],
     required: true,
   },

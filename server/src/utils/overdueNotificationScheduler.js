@@ -1,10 +1,9 @@
 import Project from "../models/Project.js";
 import Task from "../models/Task.js";
-import User from "../models/User.js";
 import Workspace from "../models/Workspace.js";
 import { createNotifications } from "./createNotifications.js";
 
-const REMINDER_DAYS = [3, 1, 0];
+const REMINDER_DAYS = [1, 0];
 
 function getTodayInAppTimeZone() {
   const timeZone = process.env.APP_TIME_ZONE || "Asia/Kolkata";
@@ -24,18 +23,6 @@ function daysFromToday(dateKey, todayKey) {
     return Date.UTC(year, month - 1, day);
   };
   return Math.round((toUtcDay(dateKey) - toUtcDay(todayKey)) / 86400000);
-}
-
-async function reminderRecipients(candidateIds, daysBefore) {
-  const ids = [...new Set(candidateIds.filter(Boolean).map(String))];
-  if (!ids.length) return [];
-  const users = await User.find({ _id: { $in: ids } }).select("_id notificationPreferences").lean();
-  return users.filter((user) => {
-    const settings = user.notificationPreferences?.dueSoon;
-    if (settings?.enabled === false) return false;
-    const selectedDays = settings?.daysBefore ?? REMINDER_DAYS;
-    return selectedDays.includes(daysBefore);
-  }).map((user) => user._id);
 }
 
 /** Runs an idempotent scan for due-soon and overdue reminders using calendar dates in APP_TIME_ZONE. */
@@ -71,7 +58,7 @@ export async function scanAndNotifyOverdue(io) {
       continue;
     }
     if (!REMINDER_DAYS.includes(delta)) continue;
-    const recipients = await reminderRecipients([task.assignee, task.createdBy], delta);
+    const recipients = [task.assignee, task.createdBy].filter(Boolean);
     const created = await createNotifications(req, {
       workspaceId: task.project.workspace,
       recipientIds: recipients,
@@ -114,7 +101,7 @@ export async function scanAndNotifyOverdue(io) {
       continue;
     }
     if (project.status === "Completed" || !REMINDER_DAYS.includes(delta)) continue;
-    const enabledRecipients = await reminderRecipients(recipients, delta);
+    const enabledRecipients = recipients;
     const created = await createNotifications(req, {
       workspaceId: project.workspace,
       recipientIds: enabledRecipients,
@@ -138,7 +125,7 @@ export function startOverdueNotificationScheduler(io) {
     console.error("Deadline notification scan failed:", error);
   });
   void run();
-  // Six-hour scans are idempotent; the first scan inside a reminder date window delivers it.
+  // Recheck every six hours so due-date reminders are not easily missed.
   const interval = setInterval(run, 6 * 60 * 60 * 1000);
   interval.unref?.();
   return () => clearInterval(interval);

@@ -1,0 +1,14 @@
+TeamSync Error Handling Update
+
+Changes included:
+- Workspace route catch blocks now forward errors to the central Express error handler instead of converting every failure into a generic HTTP 500 response.
+- Mongoose validation errors, invalid ObjectIds, duplicate-key errors, and unexpected server errors therefore use the existing central status-code and message handling consistently.
+- Added src/utils/errorMessages.js to provide friendly messages for network failures and interrupted requests.
+- Login and registration display a helpful connection message instead of browser-specific fetch error text.
+- Shared WorkspaceContext API requests and workspace invitation acceptance use the same friendly network-error handling.
+
+No new dependencies were added. Existing backend error messages returned with HTTP responses are preserved.
+
+Verification:
+- Node syntax checks passed for the changed backend route and server files and the new error-message utility.
+- A full frontend build, lint run, and live database/API test were not performed.

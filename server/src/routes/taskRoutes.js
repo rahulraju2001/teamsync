@@ -5,15 +5,25 @@ import Project from "../models/Project.js";
 import { protect, requireRole } from "../middleware/auth.js";
 import { publishTaskActivity } from "../utils/publishTaskActivity.js";
 import { createNotifications } from "../utils/createNotifications.js";
+import { isDateOnly, validateBody, validateParams } from "../middleware/validate.js";
 
 const router = Router();
 router.use(protect);
 
 const taskFields = ["title", "description", "status", "priority", "dueDate", "assigneeId"];
 const validStatuses = ["To Do", "In Progress", "Completed"];
-const isDateOnly = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
-  && !Number.isNaN(new Date(`${value}T00:00:00.000Z`).getTime())
-  && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
+const taskCreateFields = {
+  projectId: { type: "objectId", required: true, label: "Project" },
+  title: { type: "string", required: true, minLength: 1, maxLength: 100, label: "Task title" },
+  description: { type: "string", maxLength: 2000, label: "Task description" },
+  status: { type: "string", enum: validStatuses, label: "Task status" },
+  priority: { type: "string", enum: ["Low", "Medium", "High"], label: "Task priority" },
+  dueDate: { type: "string", maxLength: 10, dateOnly: true, label: "Task due date" },
+  assigneeId: { type: "objectId", nullable: true, allowEmpty: true, label: "Task assignee" },
+};
+const taskUpdateFields = Object.fromEntries(
+  Object.entries(taskCreateFields).filter(([key]) => key !== "projectId").map(([key, rule]) => [key, { ...rule, required: false }]),
+);
 
 async function workspaceProject(projectId, workspaceId) {
   if (!mongoose.isValidObjectId(projectId)) return null;
@@ -42,7 +52,7 @@ router.get("/", async (req, res) => {
   res.json({ tasks });
 });
 
-router.post("/", requireRole("Administrator"), async (req, res) => {
+router.post("/", requireRole("Administrator"), validateBody(taskCreateFields), async (req, res) => {
   const {
     projectId,
     title,
@@ -100,8 +110,7 @@ router.post("/", requireRole("Administrator"), async (req, res) => {
   res.status(201).json({ task });
 });
 
-router.patch("/:id", async (req, res) => {
-  if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: "Task not found." });
+router.patch("/:id", validateParams("id"), validateBody(taskUpdateFields, { requireAtLeastOne: true }), async (req, res) => {
   const task = await Task.findById(req.params.id).populate("project", "workspace");
   if (!task || String(task.project?.workspace) !== String(req.workspace._id)) {
     return res.status(404).json({ message: "Task not found." });
@@ -204,8 +213,7 @@ router.patch("/:id", async (req, res) => {
   res.json({ task });
 });
 
-router.delete("/:id", requireRole("Administrator"), async (req, res) => {
-  if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: "Task not found." });
+router.delete("/:id", requireRole("Administrator"), validateParams("id"), async (req, res) => {
   const task = await Task.findById(req.params.id).populate("project", "workspace");
   if (!task || String(task.project?.workspace) !== String(req.workspace._id)) return res.status(404).json({ message: "Task not found." });
   const deletedTaskId = task._id;
@@ -221,8 +229,9 @@ router.delete("/:id", requireRole("Administrator"), async (req, res) => {
   res.json({ message: "Task deleted." });
 });
 
-router.post("/:id/comments", async (req, res) => {
-  if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: "Task not found." });
+router.post("/:id/comments", validateParams("id"), validateBody({
+  text: { type: "string", required: true, maxLength: 2000, label: "Comment" },
+}), async (req, res) => {
   const task = await Task.findById(req.params.id).populate("project", "workspace");
   if (!task || String(task.project?.workspace) !== String(req.workspace._id)) return res.status(404).json({ message: "Task not found." });
   if (req.membership.role === "Member" && String(task.assignee || "") !== String(req.user._id)) {

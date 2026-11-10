@@ -411,6 +411,24 @@ function ProjectDetails() {
           )}
         </button>
 
+        {canUpdateTaskStatus(task) && (
+          <div className="mt-3 border-t border-border pt-3" onClick={(event) => event.stopPropagation()}>
+            <label className="mb-1 block text-[11px] font-medium text-muted" htmlFor={`board-status-${task.id}`}>
+              Move task to
+            </label>
+            <select
+              id={`board-status-${task.id}`}
+              aria-label={`Move ${task.title} to another status`}
+              value={task.status}
+              disabled={isMoving}
+              onChange={(event) => void handleTaskStatusChange(task, event.target.value)}
+              className="min-h-10 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-heading disabled:cursor-not-allowed disabled:bg-slate-50"
+            >
+              {statusColumns.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+          </div>
+        )}
+
         <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-3">
           <div className="flex min-w-0 items-center gap-2" title={assignee.name}>
             {assignee.id ? (
@@ -620,7 +638,7 @@ function ProjectDetails() {
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-muted">
-                Drag a task card to another column to update its status. {isAdmin ? "You can move any task." : "You can move tasks assigned to you."}
+                On desktop, drag cards between columns. On touchscreens, use the status selector on each card. {isAdmin ? "You can move any task." : "You can move tasks assigned to you."}
               </p>
               <span className={`inline-flex items-center gap-1.5 text-xs ${socketConnected ? "text-green-700" : "text-muted"}`}>
                 <span className={`h-2 w-2 rounded-full ${socketConnected ? "bg-green-500" : "bg-slate-300"}`} />
@@ -678,8 +696,8 @@ function ProjectDetails() {
       </section>
 
       {isTaskModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setIsTaskModalOpen(false)}>
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex min-h-full items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4" onClick={() => setIsTaskModalOpen(false)}>
+          <div className="my-3 max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-4 shadow-xl sm:my-4 sm:max-h-[calc(100dvh-2rem)] sm:p-6" onClick={(event) => event.stopPropagation()}>
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-heading">{editingTaskId ? "Edit Task" : "Create Task"}</h2>
               <button onClick={() => setIsTaskModalOpen(false)} aria-label="Close"><X size={20} /></button>
@@ -730,8 +748,8 @@ function ProjectDetails() {
       )}
 
       {selectedTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setSelectedTaskId(null); setCommentText(""); }}>
-          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex min-h-full items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4" onClick={() => { setSelectedTaskId(null); setCommentText(""); }}>
+          <div className="my-3 max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl sm:my-4 sm:max-h-[calc(100dvh-2rem)] sm:p-6" onClick={(event) => event.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-heading">Task Details</h2>
               <button onClick={() => { setSelectedTaskId(null); setCommentText(""); }} aria-label="Close"><X size={20} /></button>

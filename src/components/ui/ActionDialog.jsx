@@ -31,7 +31,7 @@ function ActionDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[120] flex min-h-full items-center justify-center overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-4"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !busy) onClose?.();
@@ -42,9 +42,9 @@ function ActionDialog({
         aria-modal="true"
         aria-labelledby="action-dialog-title"
         aria-describedby="action-dialog-description"
-        className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-white shadow-2xl"
+        className="my-3 max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-white shadow-2xl sm:my-4 sm:max-h-[calc(100dvh-2rem)]"
       >
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <div className="flex items-start gap-3">
             <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${isAlert ? "bg-primary-50 text-primary-700" : isDanger ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-700"}`}>
               <Icon size={21} />
@@ -71,7 +71,7 @@ function ActionDialog({
           )}
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-border bg-slate-50/80 px-6 py-4">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-border bg-slate-50/80 px-4 py-4 sm:gap-3 sm:px-6">
           {!isAlert && (
             <button
               type="button"

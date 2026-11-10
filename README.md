@@ -47,7 +47,7 @@ If your API uses another URL, copy `.env.example` to `.env` in the project root 
 - Task search, filtering, sorting and pagination
 - Team overview and account profile settings persisted through the backend
 - Dashboard greeting uses the authenticated user profile
-- Persistent per-user in-app, email-preference, and due-soon reminder settings
+- Persistent in-app notifications stored in MongoDB and delivered live through Socket.IO
 - Socket.IO real-time task and project updates
 - Persistent in-app notifications for task assignment, reassignment and comments on assigned tasks
 - Workspace-scoped, JWT-authenticated Socket.IO connections
@@ -67,7 +67,7 @@ TeamSync uses workspace membership for authorization. Each person who registers 
 - **Administrator:** rename the workspace; invite, remove and promote/demote members; create, edit and delete projects and tasks; assign and reassign tasks.
 - **Member:** view all workspace projects and tasks; update the status and add comments only on tasks assigned to them. Members cannot create tasks, edit task details, reassign or delete tasks, or administer projects.
 
-Role checks are enforced by Express middleware and route handlers, not only by hiding frontend controls. A workspace always retains at least one Administrator, and the workspace owner cannot be removed or demoted.
+Role checks are enforced by Express middleware and route handlers, not only by hiding frontend controls. A workspace always retains at least one Administrator, and the workspace owner cannot be removed or demoted. The owner is fixed when the workspace is created, cannot leave the workspace, and is the only person who can delete it. Ownership transfer is not supported.
 
 ### Important setup notes
 
@@ -91,13 +91,13 @@ Role checks are enforced by Express middleware and route handlers, not only by h
 
 The dashboard includes Upcoming Deadlines for active tasks and projects. It defaults to the signed-in user's assigned tasks and owned projects, and can be switched to all workspace deadlines. Filters support 7, 14, or 30 days, tasks/projects/all, and task priority. Completed items are excluded; overdue items remain visible in the dashboard overdue totals and notification feed.
 
-Settings > Notifications lets each user enable/disable due-soon reminders and choose 3 days before, 1 day before, and/or the due date. In-app notifications must also be enabled for reminders to be delivered. Email remains a saved preference only; email delivery is not configured.
+Deadline reminders use fixed defaults: one day before and on the due date/deadline, plus a single overdue notification. Users do not need to configure notification preferences.
 
 ## Real-time updates and notifications
 
 Socket.IO is used for live task activity. The server authenticates each socket with the same JWT used by the REST API and derives the active workspace from the authenticated user record. Clients cannot choose workspace rooms themselves.
 
-Project changes and task changes are broadcast to connected members of the active workspace. Assignment and reassignment notifications go to the affected assignees; comments on assigned tasks notify the assignee when another user comments. Notifications are stored per recipient and workspace and can be marked read individually or all at once.
+Project changes and task changes are broadcast to connected members of the active workspace. Assignment and reassignment notifications go to the affected assignees; comments on assigned tasks notify the assignee when another user comments. Notifications are stored per recipient and workspace and can be marked read individually or all at once. Notifications are always enabled in-app; per-user notification preferences are not part of this version.
 
 Install dependencies after pulling or extracting this update:
 
@@ -140,6 +140,6 @@ These permissions are enforced by the Express API as well as reflected in the Re
 
 ## In-app notifications
 
-TeamSync stores and delivers task, project, workspace, due-soon, and overdue notifications in the navbar notification menu. Socket.IO delivers new notifications live; the MongoDB notification collection keeps them available after refresh. Users can disable in-app notifications in Account Settings. Email delivery is not configured.
+TeamSync stores and delivers task, project, workspace, due-soon, and overdue notifications in the navbar notification menu. Socket.IO delivers new notifications live; the MongoDB notification collection keeps them available after refresh. In-app notifications are always enabled. Email delivery and notification preferences are not included.
 
-The backend scans for due-soon and overdue tasks and projects on startup and every six hours. Due-soon reminders are generated 3 days before, 1 day before, and on the due date/deadline, according to each recipient's Settings preferences. Task reminders go to the assignee and task creator; project reminders go to the project owner and workspace Administrators. Configure `APP_TIME_ZONE` in `server/.env` (defaults to `Asia/Kolkata`) to match the workspace calendar timezone. A reminder is sent on the first scan within its calendar-day window; it is not scheduled for an exact clock time. Each reminder is deduplicated per recipient, item, date, and reminder window. No database migration is required; ensure the MongoDB unique sparse index for `notifications.eventKey` is created in production if automatic index creation is disabled.
+The backend scans for due-soon and overdue tasks and projects on startup and every six hours. Due-soon reminders are generated one day before and on the due date/deadline using fixed defaults. Task reminders go to the assignee and task creator; project reminders go to the project owner and workspace Administrators. Configure `APP_TIME_ZONE` in `server/.env` (defaults to `Asia/Kolkata`) to match the workspace calendar timezone. A reminder is sent on the first scan within its calendar-day window; it is not scheduled for an exact clock time. Each reminder is deduplicated per recipient, item, date, and reminder window. No database migration is required; ensure the MongoDB unique sparse index for `notifications.eventKey` is created in production if automatic index creation is disabled.

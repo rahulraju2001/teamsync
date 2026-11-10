@@ -622,8 +622,8 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
 
       {/* Create workspace dialog */}
       {createOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md bg-white rounded-xl shadow-xl p-6">
+        <div className="fixed inset-0 z-[100] flex min-h-full items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4">
+          <div className="my-3 max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-xl bg-white p-4 shadow-xl sm:my-4 sm:max-h-[calc(100dvh-2rem)] sm:p-6">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-semibold text-heading">
                 Create workspace

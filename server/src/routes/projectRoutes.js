@@ -1,9 +1,9 @@
 import { Router } from "express";
-import mongoose from "mongoose";
 import Project from "../models/Project.js";
 import Task from "../models/Task.js";
 import { protect, requireRole } from "../middleware/auth.js";
 import { createNotifications } from "../utils/createNotifications.js";
+import { validateBody, validateParams } from "../middleware/validate.js";
 
 const router = Router();
 router.use(protect);
@@ -13,9 +13,18 @@ router.get("/", async (req, res) => {
   res.json({ projects });
 });
 
-router.post("/", requireRole("Administrator"), async (req, res) => {
+const projectFields = {
+  name: { type: "string", required: true, minLength: 1, maxLength: 80, label: "Project name" },
+  description: { type: "string", maxLength: 500, label: "Project description" },
+  deadline: { type: "string", maxLength: 10, dateOnly: true, label: "Project deadline" },
+  status: { type: "string", enum: ["In Progress", "Completed", "On Hold"], label: "Project status" },
+};
+const projectUpdateFields = Object.fromEntries(
+  Object.entries(projectFields).map(([key, rule]) => [key, { ...rule, required: false }]),
+);
+
+router.post("/", requireRole("Administrator"), validateBody(projectFields), async (req, res) => {
   const { name, description = "", deadline = "", status = "In Progress" } = req.body;
-  if (!name?.trim()) return res.status(400).json({ message: "Project name is required." });
   const project = await Project.create({ name, description, deadline, status, owner: req.user._id, workspace: req.workspace._id, members: req.workspace.members.map((member) => member.user) });
   req.app.get("io")?.to(`workspace:${String(req.workspace._id)}`).emit("project:changed", {
     type: "project_created",
@@ -31,17 +40,14 @@ router.post("/", requireRole("Administrator"), async (req, res) => {
   res.status(201).json({ project });
 });
 
-router.get("/:id", async (req, res) => {
-  if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: "Project not found." });
+router.get("/:id", validateParams("id"), async (req, res) => {
   const project = await Project.findOne({ _id: req.params.id, workspace: req.workspace._id }).populate("members", "name email role");
   if (!project) return res.status(404).json({ message: "Project not found." });
   res.json({ project });
 });
 
-router.patch("/:id", requireRole("Administrator"), async (req, res) => {
-  if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: "Project not found." });
-  const allowed = ["name", "description", "status", "deadline"];
-  const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
+router.patch("/:id", requireRole("Administrator"), validateParams("id"), validateBody(projectUpdateFields, { requireAtLeastOne: true }), async (req, res) => {
+  const updates = { ...req.body };
   const project = await Project.findOne({ _id: req.params.id, workspace: req.workspace._id });
   if (!project) return res.status(404).json({ message: "Project not found." });
   if ("deadline" in updates && updates.deadline) {
@@ -72,8 +78,7 @@ router.patch("/:id", requireRole("Administrator"), async (req, res) => {
   res.json({ project });
 });
 
-router.delete("/:id", requireRole("Administrator"), async (req, res) => {
-  if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: "Project not found." });
+router.delete("/:id", requireRole("Administrator"), validateParams("id"), async (req, res) => {
   const project = await Project.findOne({ _id: req.params.id, workspace: req.workspace._id });
   if (!project) return res.status(404).json({ message: "Project not found." });
   await createNotifications(req, {

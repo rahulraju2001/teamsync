@@ -188,8 +188,8 @@ function Projects() {
       )}
 
       {isAdmin && isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeModal}>
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex min-h-full items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4" onClick={closeModal}>
+          <div className="my-3 max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-4 shadow-xl sm:my-4 sm:max-h-[calc(100dvh-2rem)] sm:p-6" onClick={(event) => event.stopPropagation()}>
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-heading">{editingProjectId ? "Edit Project" : "Create Project"}</h2>
               <button onClick={closeModal} disabled={isSaving} className="text-muted hover:text-heading disabled:opacity-50" aria-label="Close"><X size={20} /></button>

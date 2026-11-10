@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { BriefcaseBusiness, LoaderCircle } from "lucide-react";
+import { getFriendlyErrorMessage } from "../../utils/errorMessages";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -36,7 +37,7 @@ function AcceptInvitation() {
         window.dispatchEvent(new Event("workspace-auth-changed"));
         setTimeout(() => navigate("/team", { replace: true }), 1200);
       })
-      .catch((error) => { if (!cancelled) { setMessage(error.message); setStatus("error"); } });
+      .catch((error) => { if (!cancelled) { setMessage(getFriendlyErrorMessage(error, "Could not accept this invitation.")); setStatus("error"); } });
     return () => { cancelled = true; };
   }, [token, navigate]);
 

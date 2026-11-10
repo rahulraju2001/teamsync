@@ -1,5 +1,4 @@
 import Notification from "../models/Notification.js";
-import User from "../models/User.js";
 import Workspace from "../models/Workspace.js";
 
 /** Persist in-app notifications and deliver them to the recipient's active workspace socket room. */
@@ -29,14 +28,7 @@ export async function createNotifications(req, {
   const recipients = [...new Set(recipientIds.map((id) => String(id?._id || id)).filter((id) => id && id !== actor && memberIds.has(id)))];
   if (!recipients.length) return [];
 
-  let users;
-  try {
-    users = await User.find({ _id: { $in: recipients } }).select("_id notificationPreferences").lean();
-  } catch (error) {
-    console.error("Could not load notification recipients:", error);
-    return [];
-  }
-  const enabled = users.filter((user) => user.notificationPreferences?.inApp !== false).map((user) => String(user._id));
+  const enabled = recipients;
   const io = req?.app?.get("io");
   const created = [];
 

@@ -1,41 +1,12 @@
-TeamSync notification update
-============================
+TeamSync notification implementation
 
-In-app notifications now cover:
-- Task assignment and reassignment (including the previous assignee).
-- Task status changes (notifying the task creator and assignee, excluding the actor).
-- Task detail edits (notifying the assignee).
-- Task comments (notifying the task creator and assignee, excluding the commenter).
-- Task creation (notifying the project owner and assigned user, where applicable).
-- Task deletion (notifying the task creator and assignee before deletion).
-- Task overdue events (assignee and creator).
-- Project creation, updates, and deletion (other project members).
-- Project overdue events (project owner and workspace Administrators).
-- Workspace rename, role changes, ownership transfer, member join, member removal, and member departure (relevant remaining members).
-
-Overdue notification behavior:
-- The backend scans on startup and every six hours.
-- It uses APP_TIME_ZONE (default Asia/Kolkata) to determine the current date.
-- Each task/project receives one overdue notification per due-date/deadline value, per recipient.
-- Changing the due date/deadline to a different past date creates a new overdue event.
-- In-app notification preferences are respected.
-- No task or project status is changed automatically.
-
-Notification navigation:
-- Task-related notifications with a project reference open that project's details.
-- Project notifications open the project when it still exists.
-- Notifications without a surviving project reference remain readable in the dropdown.
-
-Not covered / intentional limitations:
-- Invitation links are generated for the administrator to share manually; TeamSync does not send invitation emails or notify a non-member's inbox.
-- A removed member cannot retrieve notifications from a workspace they no longer belong to; remaining Administrators are notified of the removal.
-- Workspace deletion and personal actions such as switching workspaces, changing one's own profile, or changing one's own preferences do not generate activity notifications.
-- Email preference remains a saved preference only. Email delivery is not configured.
-- Overdue alerts are in-app only; they are not sent while the backend is stopped. The next startup scan catches overdue items.
-
-No database migration is required. MongoDB creates the notification eventKey unique sparse index through the Mongoose schema index. Ensure automatic index creation is enabled in your deployment, or create a unique sparse index on notifications.eventKey manually if your production MongoDB disables autoIndex.
-
-Validation performed:
-- `node --check` passed for all backend JavaScript files.
-- TypeScript transpile parser passed for all modified/relevant JSX files.
-- A full Vite production build and live MongoDB/Socket.IO integration test were not run in this environment.
+- Notifications are persisted in MongoDB.
+- New notifications are delivered live through Socket.IO.
+- Notifications appear in the navbar and can be marked read individually or all at once.
+- Task, project, workspace, assignment, comment, and membership activity can generate notifications.
+- Deadline reminders use fixed defaults: one day before and on the due date/deadline.
+- Overdue tasks and projects generate one notification per deadline value and recipient.
+- The scheduler scans on startup and every six hours. Reminder event keys prevent duplicate delivery.
+- Task reminders go to the assignee and task creator. Project reminders go to the project owner and workspace Administrators.
+- In-app notifications are always enabled. Per-user notification preferences and email notifications are not implemented.
+- No notification preferences UI or API is required.
