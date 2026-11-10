@@ -46,3 +46,9 @@ Verification
 - All server JavaScript files passed `node --check` syntax validation.
 - Dependency installation and database-backed API tests were not run in this
   environment, so live endpoint behaviour still needs to be tested locally.
+
+Task due-date validation (latest update):
+- Task due dates are required on creation and when an Administrator edits a task's due date.
+- Due dates earlier than the current date in APP_TIME_ZONE (default Asia/Kolkata) are rejected by the backend.
+- The task form marks due date as required and sets its minimum to today's local date.
+- The existing rule preventing a task due date from exceeding its project deadline remains enforced in the frontend and backend.

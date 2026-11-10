@@ -10,6 +10,17 @@ export const isDateOnly = (value) => typeof value === "string"
   && !Number.isNaN(new Date(`${value}T00:00:00.000Z`).getTime())
   && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
 
+export function getDateOnlyInTimeZone(timeZone = process.env.APP_TIME_ZONE || "Asia/Kolkata") {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 /**
  * Small reusable request-body validator. Rules are intentionally explicit so
  * route requirements remain easy for a beginner to understand and maintain.

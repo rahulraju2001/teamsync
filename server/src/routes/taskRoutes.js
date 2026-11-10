@@ -5,7 +5,7 @@ import Project from "../models/Project.js";
 import { protect, requireRole } from "../middleware/auth.js";
 import { publishTaskActivity } from "../utils/publishTaskActivity.js";
 import { createNotifications } from "../utils/createNotifications.js";
-import { isDateOnly, validateBody, validateParams } from "../middleware/validate.js";
+import { getDateOnlyInTimeZone, isDateOnly, validateBody, validateParams } from "../middleware/validate.js";
 
 const router = Router();
 router.use(protect);
@@ -18,7 +18,7 @@ const taskCreateFields = {
   description: { type: "string", maxLength: 2000, label: "Task description" },
   status: { type: "string", enum: validStatuses, label: "Task status" },
   priority: { type: "string", enum: ["Low", "Medium", "High"], label: "Task priority" },
-  dueDate: { type: "string", maxLength: 10, dateOnly: true, label: "Task due date" },
+  dueDate: { type: "string", required: true, minLength: 10, maxLength: 10, dateOnly: true, label: "Task due date" },
   assigneeId: { type: "objectId", nullable: true, allowEmpty: true, label: "Task assignee" },
 };
 const taskUpdateFields = Object.fromEntries(
@@ -59,7 +59,7 @@ router.post("/", requireRole("Administrator"), validateBody(taskCreateFields), a
     description = "",
     status = "To Do",
     priority = "Medium",
-    dueDate = "",
+    dueDate,
     assigneeId = null,
   } = req.body;
   const project = await workspaceProject(projectId, req.workspace._id);
@@ -68,8 +68,11 @@ router.post("/", requireRole("Administrator"), validateBody(taskCreateFields), a
     return res.status(400).json({ message: "Task title is required." });
   }
   if (!validStatuses.includes(status)) return res.status(400).json({ message: "Invalid task status." });
-  if (dueDate && !isDateOnly(dueDate)) return res.status(400).json({ message: "Enter a valid task due date." });
-  if (dueDate && project.deadline && dueDate > project.deadline) {
+  if (!isDateOnly(dueDate)) return res.status(400).json({ message: "A valid task due date is required." });
+  if (dueDate < getDateOnlyInTimeZone()) {
+    return res.status(400).json({ message: "Task due date cannot be earlier than today." });
+  }
+  if (project.deadline && dueDate > project.deadline) {
     return res.status(400).json({ message: "Task due date cannot be later than the project deadline." });
   }
   if (!["Low", "Medium", "High"].includes(priority)) return res.status(400).json({ message: "Invalid task priority." });
@@ -138,11 +141,14 @@ router.patch("/:id", validateParams("id"), validateBody(taskUpdateFields, { requ
     return res.status(400).json({ message: "Invalid task priority." });
   }
   if ("dueDate" in req.body) {
-    if (req.body.dueDate && !isDateOnly(req.body.dueDate)) {
-      return res.status(400).json({ message: "Enter a valid task due date." });
+    if (!isDateOnly(req.body.dueDate)) {
+      return res.status(400).json({ message: "A valid task due date is required." });
+    }
+    if (req.body.dueDate < getDateOnlyInTimeZone()) {
+      return res.status(400).json({ message: "Task due date cannot be earlier than today." });
     }
     const project = await Project.findById(task.project._id).select("deadline");
-    if (req.body.dueDate && project?.deadline && req.body.dueDate > project.deadline) {
+    if (project?.deadline && req.body.dueDate > project.deadline) {
       return res.status(400).json({ message: "Task due date cannot be later than the project deadline." });
     }
   }

@@ -62,6 +62,9 @@ function ProjectDetails() {
 
   const currentUserId = String(currentUser?._id || currentUser?.id || "");
   const project = projects.find((item) => String(item.id) === String(projectId));
+  const today = new Date();
+  today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+  const todayKey = today.toISOString().split("T")[0];
   const projectTasks = useMemo(
     () => tasks.filter((task) => String(task.projectId) === String(projectId)),
     [tasks, projectId],
@@ -136,7 +139,9 @@ function ProjectDetails() {
     today.setHours(0, 0, 0, 0);
     return due < today;
   };
-  const projectOverdue = project.status !== "Completed" && isOverdue(project.deadline);
+  const projectOverdue = Boolean(
+    project && project.status !== "Completed" && isOverdue(project.deadline),
+  );
 
   const getAssigneeInfo = (task) => {
     const assignee = task.assignee;
@@ -202,7 +207,23 @@ function ProjectDetails() {
 
   const handleTaskSubmit = async (event) => {
     event.preventDefault();
-    if (taskForm.dueDate && project?.deadline && taskForm.dueDate > project.deadline) {
+    if (!taskForm.dueDate) {
+      setDialog({
+        variant: "alert",
+        title: "Due date required",
+        message: "Please select a due date for this task.",
+      });
+      return;
+    }
+    if (taskForm.dueDate < todayKey) {
+      setDialog({
+        variant: "alert",
+        title: "Invalid task due date",
+        message: "A task's due date cannot be earlier than today.",
+      });
+      return;
+    }
+    if (project?.deadline && taskForm.dueDate > project.deadline) {
       setDialog({
         variant: "alert",
         title: "Invalid task due date",
@@ -317,10 +338,40 @@ function ProjectDetails() {
       );
   };
 
+  if (teamMembersStatus === "loading") {
+    return (
+      <div className="rounded-xl border border-border bg-white p-8" role="status" aria-live="polite">
+        <p className="text-sm text-muted">Loading project...</p>
+      </div>
+    );
+  }
+
+  if (teamMembersStatus === "error") {
+    return (
+      <div className="rounded-xl border border-border bg-white p-8">
+        <h1 className="text-xl font-semibold text-heading">Could not load project</h1>
+        <p className="mt-2 text-sm text-muted">Please check your connection and try again.</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 text-sm font-medium text-primary-600"
+        >
+          Try again
+        </button>
+        <button
+          onClick={() => navigate("/projects")}
+          className="ml-4 mt-4 text-sm font-medium text-primary-600"
+        >
+          Back to Projects
+        </button>
+      </div>
+    );
+  }
+
   if (!project) {
     return (
       <div className="rounded-xl border border-border bg-white p-8">
         <h1 className="text-xl font-semibold text-heading">Project not found</h1>
+        <p className="mt-2 text-sm text-muted">This project may have been deleted or you may not have access to it.</p>
         <button
           onClick={() => navigate("/projects")}
           className="mt-4 text-sm font-medium text-primary-600"
@@ -723,9 +774,9 @@ function ProjectDetails() {
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-heading">Due date</label>
-                  <input type="date" max={project?.deadline || undefined} value={taskForm.dueDate} onChange={(event) => setTaskForm({ ...taskForm, dueDate: event.target.value })} className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" />
-                  {project?.deadline && <p className="mt-1 text-xs text-muted">Must be on or before the project deadline ({formatDate(project.deadline)}).</p>}
+                  <label className="mb-1 block text-sm font-medium text-heading">Due date <span className="text-red-600">*</span></label>
+                  <input type="date" required min={todayKey} max={project?.deadline || undefined} value={taskForm.dueDate} onChange={(event) => setTaskForm({ ...taskForm, dueDate: event.target.value })} className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" />
+                  <p className="mt-1 text-xs text-muted">Required. Choose today or a future date{project?.deadline ? `, on or before the project deadline (${formatDate(project.deadline)})` : ""}.</p>
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-heading">Assignee</label>

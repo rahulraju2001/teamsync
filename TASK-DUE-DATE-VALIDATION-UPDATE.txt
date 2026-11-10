@@ -1,0 +1,27 @@
+TEAMSYNC - TASK DUE-DATE VALIDATION UPDATE
+
+Changes included in this update:
+
+1. Due date is mandatory
+   - The Create Task and Edit Task form requires a due date.
+   - The backend rejects task creation without a valid due date.
+   - The backend rejects attempts to clear a task due date during an update.
+   - The Task Mongoose schema now requires dueDate.
+
+2. Past dates are blocked
+   - The date input's minimum is set to today's date in the browser's local timezone.
+   - Frontend submit validation rejects dates earlier than today.
+   - Backend validation independently rejects dates earlier than the current date in APP_TIME_ZONE.
+   - APP_TIME_ZONE defaults to Asia/Kolkata.
+
+3. Existing project deadline rule retained
+   - A task due date cannot be later than its project's deadline.
+   - This is checked in both frontend and backend validation.
+
+Expected behavior:
+   - Yesterday or earlier: rejected.
+   - Today: accepted.
+   - Future date on or before the project deadline: accepted.
+   - Empty due date: rejected.
+
+The backend is the authoritative validation layer; browser input constraints are an additional usability safeguard.

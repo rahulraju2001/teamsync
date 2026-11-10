@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import ActionDialog from "../ui/ActionDialog";
+
 import {
   LayoutDashboard,
   FolderKanban,
@@ -25,7 +26,9 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
   const [creating, setCreating] = useState(false);
   const [switchingId, setSwitchingId] = useState(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
   const profileMenuRef = useRef(null);
+
   const [workspaceError, setWorkspaceError] = useState("");
   const [workspaceAction, setWorkspaceAction] = useState(null);
   const [workspaceActionBusy, setWorkspaceActionBusy] = useState(false);
@@ -47,10 +50,12 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
       : workspace.owner;
 
   const activeWorkspaceId = workspaceInfo?._id || workspaceInfo?.id;
+
   const activeWorkspaceOwnerId =
     typeof workspaceInfo?.owner === "object"
       ? workspaceInfo.owner?._id
       : workspaceInfo?.owner;
+
   const isWorkspaceOwner =
     Boolean(userId) && String(activeWorkspaceOwnerId) === String(userId);
 
@@ -59,6 +64,7 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
       (workspaces || []).map((workspace) => [String(workspace._id), workspace]),
     ).values(),
   );
+
   const availableWorkspaces = uniqueWorkspaces.filter(
     (workspace) => String(workspace._id) !== String(activeWorkspaceId),
   );
@@ -119,7 +125,7 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
   };
 
   const handleSettings = () => {
-    setProfileMenuOpen(false); // Close the dropdown
+    setProfileMenuOpen(false);
     navigate("/settings");
   };
 
@@ -217,9 +223,12 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
       setWorkspaceAction(null);
       setWorkspaceOpen(false);
       setIsMobileOpen(false);
+
       navigate("/dashboard", { replace: true });
     } catch (error) {
-      setWorkspaceError(error.message || "Could not complete this workspace action.");
+      setWorkspaceError(
+        error.message || "Could not complete this workspace action.",
+      );
     } finally {
       setWorkspaceActionBusy(false);
     }
@@ -234,20 +243,23 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
         />
       )}
 
+      {/* Sidebar */}
       <aside
         className={`
           fixed inset-y-0 left-0 z-50
-          w-64 min-h-screen bg-white text-slate-600
+          w-64 h-screen min-h-0
+          bg-white text-slate-600
           flex flex-col border-r border-border
           transition-all duration-300
           ${isCollapsed ? "lg:w-20" : "lg:w-64"}
           ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:static lg:translate-x-0 lg:shrink-0
+          lg:sticky lg:top-0 lg:h-screen
+          lg:translate-x-0 lg:shrink-0 lg:self-start
         `}
       >
         {/* Logo */}
         <div
-          className={`h-16 flex items-center border-b border-border ${
+          className={`h-16 shrink-0 flex items-center border-b border-border ${
             isCollapsed ? "justify-center px-0" : "px-6"
           }`}
         >
@@ -261,7 +273,7 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
         </div>
 
         {/* Workspace selector */}
-        <div className={isCollapsed ? "p-2" : "p-4"}>
+        <div className={`shrink-0 ${isCollapsed ? "p-2" : "p-4"}`}>
           <button
             type="button"
             onClick={() => setWorkspaceOpen((open) => !open)}
@@ -308,6 +320,7 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
                   <p className="px-2 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
                     Current Workspace
                   </p>
+
                   <div
                     aria-current="true"
                     className="w-full flex items-center justify-between gap-2 p-2 text-sm text-left bg-primary-50 border border-primary-100 rounded-lg"
@@ -316,15 +329,18 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
                       <span className="w-7 h-7 shrink-0 rounded-md bg-primary-600 text-white flex items-center justify-center text-xs font-semibold">
                         {(workspaceInfo.name || "W").charAt(0).toUpperCase()}
                       </span>
+
                       <span className="min-w-0">
                         <span className="block truncate font-medium text-heading">
                           {workspaceInfo.name || "My Workspace"}
                         </span>
+
                         <span className="block text-xs text-muted">
                           Currently selected
                         </span>
                       </span>
                     </span>
+
                     <Check
                       size={16}
                       aria-label="Selected workspace"
@@ -412,6 +428,7 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
                     <Settings size={16} />
                     Workspace Settings
                   </button>
+
                   {isWorkspaceOwner ? (
                     <button
                       type="button"
@@ -456,7 +473,7 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-2">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-2">
           {!isCollapsed && (
             <p className="text-xs uppercase tracking-wider text-muted px-3 mb-3">
               Menu
@@ -520,7 +537,7 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
         {/* User profile and dropdown */}
         <div
           ref={profileMenuRef}
-          className={`relative p-4 border-t border-border ${
+          className={`relative shrink-0 p-4 border-t border-border ${
             isCollapsed ? "flex justify-center" : ""
           }`}
         >
@@ -693,7 +710,9 @@ function Sidebar({ isCollapsed, isMobileOpen, setIsMobileOpen }) {
         open={Boolean(workspaceAction)}
         variant="danger"
         title="Leave workspace?"
-        message={`You will be removed from ${workspaceInfo?.name || "this workspace"}. You will lose access to its projects and tasks. You can rejoin only if an Administrator invites you again.`}
+        message={`You will be removed from ${
+          workspaceInfo?.name || "this workspace"
+        }. You will lose access to its projects and tasks. You can rejoin only if an Administrator invites you again.`}
         confirmLabel="Leave workspace"
         busy={workspaceActionBusy}
         error={workspaceError}

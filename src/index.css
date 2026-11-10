@@ -1,24 +1,30 @@
+
 @import "tailwindcss";
 
 @theme {
-  /* Primary colors */
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
+  /* Primary colors - Burgundy / Wine */
+  --color-primary-50: #fdf2f4;
+  --color-primary-100: #fce4e9;
+  --color-primary-200: #f5c6d1;
+  --color-primary-300: #e9a0b2;
+  --color-primary-400: #d46b88;
+  --color-primary-500: #a83d60;
+  --color-primary-600: #872c4b;
+  --color-primary-700: #70213d;
+  --color-primary-800: #5c1b34;
+  --color-primary-900: #47152a;
 
-  /* Background colors */
-  --color-background: #f8fafc;
+  /* Background colors - Warm cream */
+  --color-background: #faf7f5;
   --color-surface: #ffffff;
 
   /* Text colors */
-  --color-heading: #0f172a;
-  --color-body: #475569;
-  --color-muted: #94a3b8;
+  --color-heading: #321923;
+  --color-body: #66535b;
+  --color-muted: #a18e95;
 
   /* Border colors */
-  --color-border: #e2e8f0;
+  --color-border: #eadde1;
 }
 
 @layer base {
@@ -32,10 +38,12 @@
     color: var(--color-body);
     font-family: Arial, Helvetica, sans-serif;
   }
-  /* font:inherit - Makes form elements inherit the application's font */
+
+  /* Form elements inherit the application's font */
   button,
   input,
-  textarea {
+  textarea,
+  select {
     font: inherit;
   }
 }

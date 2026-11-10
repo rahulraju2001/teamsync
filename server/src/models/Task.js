@@ -12,7 +12,7 @@ const taskSchema = new mongoose.Schema({
   status: { type: String, enum: ["To Do", "In Progress", "Completed"], default: "To Do" },
   completedAt: { type: Date, default: null, index: true },
   priority: { type: String, enum: ["Low", "Medium", "High"], default: "Medium" },
-  dueDate: { type: String, default: "" },
+  dueDate: { type: String, required: true },
   assignee: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   comments: [commentSchema],

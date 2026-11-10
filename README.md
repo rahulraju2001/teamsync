@@ -39,7 +39,7 @@ If your API uses another URL, copy `.env.example` to `.env` in the project root 
 - Protected API endpoints
 - Project create, read, update and delete
 - Task create, read, update and delete
-- Task status, priority, due date and comments
+- Task status, priority, required due dates (today or later, and no later than the project deadline) and comments
 - Task assignments stored as MongoDB User ObjectId references, with workspace-member validation and populated user details
 - Shared workspace state across Dashboard, Projects, Project Details and My Tasks
 - Dashboard statistics calculated from the user's projects and tasks
@@ -54,8 +54,7 @@ If your API uses another URL, copy `.env.example` to `.env` in the project root 
 
 ## Current limitations
 - Invitations generate shareable links; they are not emailed automatically.
-- File attachments, email delivery for invitations, password reset and outbound email notifications are not implemented.
-- Email notifications are stored as a preference only; outbound email delivery is not configured. Email address changes are disabled in Settings because the address is used for sign-in.
+- File attachments, email delivery for invitations, password reset and outbound email notifications are not implemented. Email address changes are disabled in Settings because the address is used for sign-in.
 - Legacy task assignments must be migrated once from initials to User references; ambiguous initials are intentionally converted to Unassigned rather than guessed.
 
 ## Workspace roles and invitations
