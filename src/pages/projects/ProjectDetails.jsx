@@ -136,6 +136,7 @@ function ProjectDetails() {
     today.setHours(0, 0, 0, 0);
     return due < today;
   };
+  const projectOverdue = project.status !== "Completed" && isOverdue(project.deadline);
 
   const getAssigneeInfo = (task) => {
     const assignee = task.assignee;
@@ -201,6 +202,14 @@ function ProjectDetails() {
 
   const handleTaskSubmit = async (event) => {
     event.preventDefault();
+    if (taskForm.dueDate && project?.deadline && taskForm.dueDate > project.deadline) {
+      setDialog({
+        variant: "alert",
+        title: "Invalid task due date",
+        message: "A task's due date cannot be later than its project deadline.",
+      });
+      return;
+    }
     const payload = {
       ...taskForm,
       title: taskForm.title.trim(),
@@ -417,7 +426,7 @@ function ProjectDetails() {
           </div>
           <div className={`flex shrink-0 items-center gap-1 text-[11px] ${overdue ? "font-semibold text-red-600" : "text-muted"}`}>
             <CalendarDays size={13} />
-            <span>{task.dueDate ? formatDate(task.dueDate) : "No due date"}</span>
+            <span>{task.dueDate ? `${overdue ? "Overdue · " : ""}${formatDate(task.dueDate)}` : "No due date"}</span>
           </div>
         </div>
 
@@ -492,7 +501,7 @@ function ProjectDetails() {
         </div>
         <div className="rounded-xl border border-border bg-white p-5">
           <p className="text-sm text-muted">Deadline</p>
-          <p className="mt-2 text-lg font-semibold text-heading">{formatDate(project.deadline)}</p>
+          <p className={`mt-2 text-lg font-semibold ${projectOverdue ? "text-red-600" : "text-heading"}`}>{formatDate(project.deadline)}</p>{projectOverdue && <span className="mt-2 inline-flex rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">Overdue</span>}
         </div>
       </div>
 
@@ -582,9 +591,10 @@ function ProjectDetails() {
                         <h3 className="font-medium text-heading">{task.title}</h3>
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[task.status]}`}>{task.status}</span>
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${priorityStyles[task.priority]}`}>{task.priority}</span>
+                        {isOverdue(task.dueDate) && task.status !== "Completed" && <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">Overdue</span>}
                       </div>
                       <p className="mt-1 text-xs text-muted">
-                        Assigned to {getAssigneeInfo(task).name} · Due {formatDate(task.dueDate)} · {(task.comments || []).length} comments
+                        Assigned to {getAssigneeInfo(task).name} · <span className={isOverdue(task.dueDate) && task.status !== "Completed" ? "font-semibold text-red-600" : ""}>{task.dueDate ? `${isOverdue(task.dueDate) && task.status !== "Completed" ? "Overdue · " : "Due "}${formatDate(task.dueDate)}` : "No due date"}</span> · {(task.comments || []).length} comments
                       </p>
                     </button>
                     {renderTaskActions(task)}
@@ -696,7 +706,8 @@ function ProjectDetails() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-heading">Due date</label>
-                  <input type="date" value={taskForm.dueDate} onChange={(event) => setTaskForm({ ...taskForm, dueDate: event.target.value })} className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" />
+                  <input type="date" max={project?.deadline || undefined} value={taskForm.dueDate} onChange={(event) => setTaskForm({ ...taskForm, dueDate: event.target.value })} className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" />
+                  {project?.deadline && <p className="mt-1 text-xs text-muted">Must be on or before the project deadline ({formatDate(project.deadline)}).</p>}
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-heading">Assignee</label>

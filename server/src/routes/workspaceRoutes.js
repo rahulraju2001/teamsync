@@ -6,6 +6,7 @@ import Project from "../models/Project.js";
 import Task from "../models/Task.js";
 import Notification from "../models/Notification.js";
 import { protect, requireRole } from "../middleware/auth.js";
+import { createNotifications } from "../utils/createNotifications.js";
 
 const router = Router();
 router.use(protect);
@@ -201,6 +202,11 @@ router.post("/transfer-ownership", async (req, res) => {
     // The new owner may currently have another workspace selected, so notify
     // their user room as well to refresh the workspace switcher.
     io?.to(`user:${newOwnerId}`).emit("workspace:changed", event);
+    await createNotifications(req, {
+      recipientIds: [newOwnerId],
+      type: "workspace_ownership_transferred",
+      message: `${req.user.name} transferred ownership of ${workspace.name} to you`,
+    });
 
     return res.json({
       message: "Workspace ownership transferred successfully.",
@@ -240,6 +246,12 @@ router.post("/leave", async (req, res) => {
       (member) => String(member.user) !== userId,
     );
     await workspace.save();
+    await createNotifications(req, {
+      workspaceId: workspace._id,
+      recipientIds: workspace.members.filter((member) => member.role === "Administrator").map((member) => member.user),
+      type: "workspace_member_left",
+      message: `${req.user.name} left the workspace`,
+    });
 
     // Switch to another workspace if the user belongs to one. Otherwise,
     // create a fresh personal workspace so the app always has an active one.
@@ -383,8 +395,17 @@ router.patch("/", requireRole("Administrator"), async (req, res) => {
     return res
       .status(400)
       .json({ message: "Workspace name must be 80 characters or fewer." });
+  const previousName = req.workspace.name;
   req.workspace.name = name;
   await req.workspace.save();
+  await createNotifications(req, {
+    recipientIds: req.workspace.members.map((member) => member.user),
+    type: "workspace_renamed",
+    message: `${req.user.name} renamed the workspace from ${previousName} to ${name}`,
+  });
+  req.app.get("io")?.to(`workspace:${String(req.workspace._id)}`).emit("workspace:changed", {
+    workspaceId: String(req.workspace._id), action: "renamed",
+  });
   res.json({ workspace: { id: req.workspace._id, name: req.workspace.name } });
 });
 
@@ -466,6 +487,12 @@ router.post("/invitations/accept", async (req, res) => {
   req.user.activeWorkspace = workspace._id;
   req.user.role = "Member";
   await req.user.save({ validateBeforeSave: false });
+  await createNotifications(req, {
+    workspaceId: workspace._id,
+    recipientIds: workspace.members.filter((member) => member.role === "Administrator").map((member) => member.user),
+    type: "workspace_member_joined",
+    message: `${req.user.name} joined ${workspace.name}`,
+  });
   req.app.get("io")?.to(`user:${String(req.user._id)}`).emit("workspace:changed", {
     workspaceId: String(workspace._id),
   });
@@ -516,6 +543,14 @@ router.patch(
       targetUser.role = role;
       await targetUser.save({ validateBeforeSave: false });
     }
+    await createNotifications(req, {
+      recipientIds: [req.params.userId],
+      type: "workspace_role_changed",
+      message: `${req.user.name} changed your workspace role to ${role}`,
+    });
+    req.app.get("io")?.to(`workspace:${String(req.workspace._id)}`).emit("workspace:member_changed", {
+      workspaceId: String(req.workspace._id), userId: req.params.userId, action: "role_changed",
+    });
     res.json({
       message: "Member role updated.",
       member: { id: req.params.userId, role },
@@ -549,6 +584,12 @@ router.delete(
       (item) => String(item.user) !== req.params.userId,
     );
     await req.workspace.save();
+    const removedUser = await User.findById(req.params.userId).select("name");
+    await createNotifications(req, {
+      recipientIds: req.workspace.members.filter((item) => item.role === "Administrator").map((item) => item.user),
+      type: "workspace_member_removed",
+      message: `${removedUser?.name || "A member"} was removed from the workspace by ${req.user.name}`,
+    });
     const user = await User.findById(req.params.userId);
     if (user && String(user.activeWorkspace) === String(req.workspace._id))
       user.activeWorkspace = null;

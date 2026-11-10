@@ -4,16 +4,20 @@ import Task from "../models/Task.js";
 import Project from "../models/Project.js";
 import { protect, requireRole } from "../middleware/auth.js";
 import { publishTaskActivity } from "../utils/publishTaskActivity.js";
+import { createNotifications } from "../utils/createNotifications.js";
 
 const router = Router();
 router.use(protect);
 
 const taskFields = ["title", "description", "status", "priority", "dueDate", "assigneeId"];
 const validStatuses = ["To Do", "In Progress", "Completed"];
+const isDateOnly = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+  && !Number.isNaN(new Date(`${value}T00:00:00.000Z`).getTime())
+  && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
 
 async function workspaceProject(projectId, workspaceId) {
   if (!mongoose.isValidObjectId(projectId)) return null;
-  return Project.findOne({ _id: projectId, workspace: workspaceId }).select("_id");
+  return Project.findOne({ _id: projectId, workspace: workspaceId }).select("_id owner name deadline");
 }
 
 function isWorkspaceMember(workspace, userId) {
@@ -54,6 +58,10 @@ router.post("/", requireRole("Administrator"), async (req, res) => {
     return res.status(400).json({ message: "Task title is required." });
   }
   if (!validStatuses.includes(status)) return res.status(400).json({ message: "Invalid task status." });
+  if (dueDate && !isDateOnly(dueDate)) return res.status(400).json({ message: "Enter a valid task due date." });
+  if (dueDate && project.deadline && dueDate > project.deadline) {
+    return res.status(400).json({ message: "Task due date cannot be later than the project deadline." });
+  }
   if (!["Low", "Medium", "High"].includes(priority)) return res.status(400).json({ message: "Invalid task priority." });
   if (assigneeId && !mongoose.isValidObjectId(assigneeId)) {
     return res.status(400).json({ message: "Invalid task assignee." });
@@ -77,9 +85,17 @@ router.post("/", requireRole("Administrator"), async (req, res) => {
   await publishTaskActivity(req, {
     type: "task_created",
     taskId: task._id,
+    projectId: project._id,
     notificationRecipients: assigneeId ? [assigneeId] : [],
     notificationType: "task_assigned",
     notificationMessage: `You were assigned to task: ${task.title}`,
+  });
+  await createNotifications(req, {
+    recipientIds: [project.owner],
+    type: "task_created",
+    message: `${req.user.name} created a task in ${project.name}: ${task.title}`,
+    taskId: task._id,
+    projectId: project._id,
   });
   res.status(201).json({ task });
 });
@@ -111,6 +127,15 @@ router.patch("/:id", async (req, res) => {
   }
   if ("priority" in req.body && !["Low", "Medium", "High"].includes(req.body.priority)) {
     return res.status(400).json({ message: "Invalid task priority." });
+  }
+  if ("dueDate" in req.body) {
+    if (req.body.dueDate && !isDateOnly(req.body.dueDate)) {
+      return res.status(400).json({ message: "Enter a valid task due date." });
+    }
+    const project = await Project.findById(task.project._id).select("deadline");
+    if (req.body.dueDate && project?.deadline && req.body.dueDate > project.deadline) {
+      return res.status(400).json({ message: "Task due date cannot be later than the project deadline." });
+    }
   }
 
   const previousAssigneeId = task.assignee ? String(task.assignee) : null;
@@ -144,18 +169,38 @@ router.patch("/:id", async (req, res) => {
   await task.populate("comments.author", "name");
 
   const assignmentChanged = previousAssigneeId !== currentAssigneeId;
-  const recipients = assignmentChanged
-    ? [previousAssigneeId, currentAssigneeId].filter(Boolean)
-    : [];
+  const recipients = assignmentChanged ? [previousAssigneeId, currentAssigneeId].filter(Boolean) : [];
   await publishTaskActivity(req, {
     type: assignmentChanged ? "task_reassigned" : "task_updated",
     taskId: task._id,
+    projectId: task.project._id,
     notificationRecipients: recipients,
-    notificationType: "task_reassigned",
+    notificationType: assignmentChanged ? "task_reassigned" : null,
     notificationMessage: (recipientId) => recipientId === currentAssigneeId
       ? `You were assigned to task: ${task.title}`
       : `You are no longer assigned to task: ${task.title}`,
   });
+
+  const statusChanged = "status" in req.body && previousStatus !== task.status;
+  if (statusChanged) {
+    await createNotifications(req, {
+      recipientIds: [task.createdBy, task.assignee],
+      type: "task_status_changed",
+      message: `${req.user.name} changed the status of ${task.title} to ${task.status}`,
+      taskId: task._id,
+      projectId: task.project._id,
+    });
+  }
+  const detailsChanged = ["title", "description", "priority", "dueDate"].some((key) => key in req.body);
+  if (detailsChanged && !assignmentChanged) {
+    await createNotifications(req, {
+      recipientIds: [task.assignee],
+      type: "task_updated",
+      message: `${req.user.name} updated the details of your task: ${task.title}`,
+      taskId: task._id,
+      projectId: task.project._id,
+    });
+  }
   res.json({ task });
 });
 
@@ -164,6 +209,13 @@ router.delete("/:id", requireRole("Administrator"), async (req, res) => {
   const task = await Task.findById(req.params.id).populate("project", "workspace");
   if (!task || String(task.project?.workspace) !== String(req.workspace._id)) return res.status(404).json({ message: "Task not found." });
   const deletedTaskId = task._id;
+  await createNotifications(req, {
+    recipientIds: [task.assignee, task.createdBy],
+    type: "task_deleted",
+    message: `Task deleted: ${task.title}`,
+    taskId: null,
+    projectId: task.project._id,
+  });
   await task.deleteOne();
   await publishTaskActivity(req, { type: "task_deleted", taskId: deletedTaskId });
   res.json({ message: "Task deleted." });
@@ -187,9 +239,10 @@ router.post("/:id/comments", async (req, res) => {
   await publishTaskActivity(req, {
     type: "task_commented",
     taskId: task._id,
-    notificationRecipients: task.assignee ? [task.assignee._id] : [],
+    projectId: task.project._id,
+    notificationRecipients: [task.assignee?._id, task.createdBy],
     notificationType: "task_commented",
-    notificationMessage: `${req.user.name} commented on your assigned task: ${task.title}`,
+    notificationMessage: `${req.user.name} commented on task: ${task.title}`,
   });
   res.status(201).json({ comments: task.comments });
 });

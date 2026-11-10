@@ -15,6 +15,10 @@ const publicUser = (user, role) => ({
   notificationPreferences: {
     inApp: user.notificationPreferences?.inApp ?? true,
     email: user.notificationPreferences?.email ?? false,
+    dueSoon: {
+      enabled: user.notificationPreferences?.dueSoon?.enabled ?? true,
+      daysBefore: user.notificationPreferences?.dueSoon?.daysBefore ?? [3, 1, 0],
+    },
   },
 });
 
@@ -97,14 +101,28 @@ router.patch("/profile", protect, async (req, res) => {
 });
 
 router.patch("/preferences", protect, async (req, res) => {
-  const { inApp, email } = req.body || {};
+  const { inApp, email, dueSoon } = req.body || {};
   if ((inApp !== undefined && typeof inApp !== "boolean") || (email !== undefined && typeof email !== "boolean")) {
     return res.status(400).json({ message: "Notification preferences must be boolean values." });
+  }
+  if (dueSoon !== undefined) {
+    if (!dueSoon || typeof dueSoon !== "object" || Array.isArray(dueSoon)
+      || (dueSoon.enabled !== undefined && typeof dueSoon.enabled !== "boolean")
+      || (dueSoon.daysBefore !== undefined && (!Array.isArray(dueSoon.daysBefore)
+        || dueSoon.daysBefore.some((value) => ![3, 1, 0].includes(value))
+        || new Set(dueSoon.daysBefore).size !== dueSoon.daysBefore.length))) {
+      return res.status(400).json({ message: "Due-soon reminder preferences are invalid." });
+    }
   }
 
   if (!req.user.notificationPreferences) req.user.notificationPreferences = { inApp: true, email: false };
   if (inApp !== undefined) req.user.notificationPreferences.inApp = inApp;
   if (email !== undefined) req.user.notificationPreferences.email = email;
+  if (dueSoon !== undefined) {
+    if (!req.user.notificationPreferences.dueSoon) req.user.notificationPreferences.dueSoon = { enabled: true, daysBefore: [3, 1, 0] };
+    if (dueSoon.enabled !== undefined) req.user.notificationPreferences.dueSoon.enabled = dueSoon.enabled;
+    if (dueSoon.daysBefore !== undefined) req.user.notificationPreferences.dueSoon.daysBefore = dueSoon.daysBefore;
+  }
   await req.user.save();
 
   res.json({
@@ -112,6 +130,10 @@ router.patch("/preferences", protect, async (req, res) => {
     notificationPreferences: {
       inApp: req.user.notificationPreferences.inApp,
       email: req.user.notificationPreferences.email,
+      dueSoon: {
+        enabled: req.user.notificationPreferences.dueSoon?.enabled ?? true,
+        daysBefore: req.user.notificationPreferences.dueSoon?.daysBefore ?? [3, 1, 0],
+      },
     },
   });
 });

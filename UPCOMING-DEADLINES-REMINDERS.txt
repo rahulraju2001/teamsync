@@ -1,0 +1,27 @@
+UPCOMING DEADLINES AND DUE-SOON REMINDERS
+
+Dashboard
+- Adds an Upcoming Deadlines section for active tasks and projects.
+- Defaults to My deadlines; tasks assigned to the signed-in user and projects owned by that user are shown.
+- Supports All workspace deadlines, next 7/14/30 days, task-only/project-only/all, and task-priority filters.
+- Completed tasks and projects are excluded. Overdue items remain represented by the existing overdue KPI and notification system.
+
+Reminder schedule
+- Task reminders: 3 days before, 1 day before, and on the due date.
+- Project reminders: 3 days before, 1 day before, and on the deadline.
+- Task recipients: assignee and task creator (duplicates are removed; actor is not relevant for system reminders).
+- Project recipients: project owner and workspace Administrators.
+- Completed tasks/projects are skipped. Existing overdue notifications continue to run.
+- The existing scheduler performs an immediate scan at startup and scans every six hours. A reminder is delivered on the first scan within its calendar-day window, not at an exact clock time.
+- APP_TIME_ZONE controls calendar-day calculations and defaults to Asia/Kolkata.
+
+User preferences
+- Settings > Notifications has a due-soon reminder toggle and individual 3-day, 1-day, and due-date switches.
+- Preferences are stored per user in notificationPreferences.dueSoon.
+- In-app notifications must also be enabled for a reminder to be persisted/delivered.
+- Email preference remains a saved preference only; email delivery is not configured.
+
+Deduplication and changes
+- Each reminder event is deduplicated per recipient, item, deadline date, and reminder window using Notification.eventKey.
+- Changing a deadline creates a new reminder identity for the new date. Previously delivered notifications remain in history.
+- The scheduler does not change task/project status.

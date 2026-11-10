@@ -2,14 +2,15 @@ import { useState } from "react";
 import { Save, UserRound, Bell } from "lucide-react";
 import { useWorkspace } from "../../context/WorkspaceContext";
 
-const defaultPreferences = { inApp: true, email: false };
+const defaultPreferences = { inApp: true, email: false, dueSoon: { enabled: true, daysBefore: [3, 1, 0] } };
 
 function Settings() {
   const { currentUser, updateProfile, updateNotificationPreferences } = useWorkspace();
   const [nameDraft, setNameDraft] = useState(null);
   const [preferencesDraft, setPreferencesDraft] = useState(null);
   const name = nameDraft ?? currentUser?.name ?? "";
-  const preferences = preferencesDraft ?? currentUser?.notificationPreferences ?? defaultPreferences;
+  const storedPreferences = currentUser?.notificationPreferences ?? defaultPreferences;
+  const preferences = preferencesDraft ?? { ...defaultPreferences, ...storedPreferences, dueSoon: { ...defaultPreferences.dueSoon, ...(storedPreferences.dueSoon || {}) } };
   const [profileSaving, setProfileSaving] = useState(false);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
@@ -46,6 +47,25 @@ function Settings() {
     } catch (saveError) {
       setPreferencesDraft(null);
       setError(saveError.message || "Could not save notification preferences.");
+    } finally {
+      setPreferencesSaving(false);
+    }
+  };
+
+  const handleDueSoonChange = async (updates) => {
+    const dueSoon = { ...preferences.dueSoon, ...updates };
+    const nextPreferences = { ...preferences, dueSoon };
+    setPreferencesDraft(nextPreferences);
+    setPreferencesSaving(true);
+    setPreferencesMessage("");
+    setError("");
+    try {
+      await updateNotificationPreferences({ dueSoon });
+      setPreferencesDraft(null);
+      setPreferencesMessage("Reminder preferences saved.");
+    } catch (saveError) {
+      setPreferencesDraft(null);
+      setError(saveError.message || "Could not save reminder preferences.");
     } finally {
       setPreferencesSaving(false);
     }
@@ -113,10 +133,33 @@ function Settings() {
           <label className="flex cursor-pointer items-center justify-between gap-4">
             <span>
               <span className="block text-sm font-medium text-heading">In-app notifications</span>
-              <span className="mt-1 block text-xs text-muted">Receive and save task assignment and comment notifications in TeamSync.</span>
+              <span className="mt-1 block text-xs text-muted">Receive task, project, workspace, and overdue notifications in TeamSync.</span>
             </span>
             <input type="checkbox" checked={preferences.inApp} disabled={preferencesSaving} onChange={(event) => handlePreferenceChange("inApp", event.target.checked)} className="h-4 w-4 accent-indigo-600" />
           </label>
+          <div className="border-t border-border pt-5">
+            <label className="flex cursor-pointer items-center justify-between gap-4">
+              <span>
+                <span className="block text-sm font-medium text-heading">Due-soon reminders</span>
+                <span className="mt-1 block text-xs text-muted">Get in-app reminders for assigned tasks and projects you own or administer.</span>
+              </span>
+              <input type="checkbox" checked={preferences.dueSoon.enabled} disabled={preferencesSaving} onChange={(event) => handleDueSoonChange({ enabled: event.target.checked })} className="h-4 w-4 accent-indigo-600" />
+            </label>
+            <div className={`mt-4 flex flex-wrap gap-x-6 gap-y-3 ${preferences.dueSoon.enabled ? "" : "opacity-50"}`}>
+              {[{ value: 3, label: "3 days before" }, { value: 1, label: "1 day before" }, { value: 0, label: "On the due date" }].map((option) => (
+                <label key={option.value} className="flex items-center gap-2 text-sm text-body">
+                  <input type="checkbox" checked={preferences.dueSoon.daysBefore.includes(option.value)} disabled={preferencesSaving || !preferences.dueSoon.enabled} onChange={(event) => {
+                    const daysBefore = event.target.checked
+                      ? [...preferences.dueSoon.daysBefore, option.value].sort((a, b) => b - a)
+                      : preferences.dueSoon.daysBefore.filter((day) => day !== option.value);
+                    handleDueSoonChange({ daysBefore });
+                  }} className="h-4 w-4 accent-indigo-600" />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-muted">These settings apply to future reminder delivery. Already delivered notifications remain in your history.</p>
+          </div>
           <div className="border-t border-border pt-5">
             <label className="flex cursor-pointer items-center justify-between gap-4">
               <span>

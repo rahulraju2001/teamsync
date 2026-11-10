@@ -457,7 +457,11 @@ export function WorkspaceProvider({ children }) {
 
       // A workspace can be deleted while this user is active in another one.
       // Refresh the workspace list without clearing notifications in that case.
-      if (event.action !== "ownership_transferred" && !deletedDifferentWorkspace) {
+      const sameWorkspaceEvent =
+        String(event.workspaceId || "") === String(activeWorkspaceId) &&
+        !event.previousWorkspaceId &&
+        event.action !== "deleted";
+      if (!sameWorkspaceEvent && event.action !== "ownership_transferred" && !deletedDifferentWorkspace) {
         setNotifications([]);
       }
       refreshWorkspaceData().catch((error) =>

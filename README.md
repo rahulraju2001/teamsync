@@ -47,7 +47,7 @@ If your API uses another URL, copy `.env.example` to `.env` in the project root 
 - Task search, filtering, sorting and pagination
 - Team overview and account profile settings persisted through the backend
 - Dashboard greeting uses the authenticated user profile
-- Persistent per-user in-app and email-notification preferences
+- Persistent per-user in-app, email-preference, and due-soon reminder settings
 - Socket.IO real-time task and project updates
 - Persistent in-app notifications for task assignment, reassignment and comments on assigned tasks
 - Workspace-scoped, JWT-authenticated Socket.IO connections
@@ -86,6 +86,12 @@ Role checks are enforced by Express middleware and route handlers, not only by h
 - `PATCH /api/workspace/members/:userId/role` – change a member's role (Administrator).
 - `DELETE /api/workspace/members/:userId` – remove a member (Administrator).
 
+
+## Upcoming deadlines and reminders
+
+The dashboard includes Upcoming Deadlines for active tasks and projects. It defaults to the signed-in user's assigned tasks and owned projects, and can be switched to all workspace deadlines. Filters support 7, 14, or 30 days, tasks/projects/all, and task priority. Completed items are excluded; overdue items remain visible in the dashboard overdue totals and notification feed.
+
+Settings > Notifications lets each user enable/disable due-soon reminders and choose 3 days before, 1 day before, and/or the due date. In-app notifications must also be enabled for reminders to be delivered. Email remains a saved preference only; email delivery is not configured.
 
 ## Real-time updates and notifications
 
@@ -131,3 +137,9 @@ Administrators can assign or unassign tasks using the workspace member list. Tas
 - Each user can persistently enable or disable in-app notifications and save an email-notification preference in Settings. The email preference does not send email until an email provider is configured.
 
 These permissions are enforced by the Express API as well as reflected in the React interface.
+
+## In-app notifications
+
+TeamSync stores and delivers task, project, workspace, due-soon, and overdue notifications in the navbar notification menu. Socket.IO delivers new notifications live; the MongoDB notification collection keeps them available after refresh. Users can disable in-app notifications in Account Settings. Email delivery is not configured.
+
+The backend scans for due-soon and overdue tasks and projects on startup and every six hours. Due-soon reminders are generated 3 days before, 1 day before, and on the due date/deadline, according to each recipient's Settings preferences. Task reminders go to the assignee and task creator; project reminders go to the project owner and workspace Administrators. Configure `APP_TIME_ZONE` in `server/.env` (defaults to `Asia/Kolkata`) to match the workspace calendar timezone. A reminder is sent on the first scan within its calendar-day window; it is not scheduled for an exact clock time. Each reminder is deduplicated per recipient, item, date, and reminder window. No database migration is required; ensure the MongoDB unique sparse index for `notifications.eventKey` is created in production if automatic index creation is disabled.

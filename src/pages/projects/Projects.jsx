@@ -111,6 +111,9 @@ function Projects() {
     });
   };
 
+  const todayDate = new Date();
+  const todayKey = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${String(todayDate.getDate()).padStart(2, "0")}`;
+  const isProjectOverdue = (project) => project.status !== "Completed" && Boolean(project.deadline && /^\d{4}-\d{2}-\d{2}$/.test(project.deadline) && project.deadline < todayKey);
   const formatDate = (date) => date
     ? new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
     : "No deadline";
@@ -171,7 +174,7 @@ function Projects() {
                 </div>
                 <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
                   <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[project.status] || "bg-slate-100 text-slate-600"}`}>{project.status}</span>
-                  <span className="text-xs text-muted">Due {formatDate(project.deadline)}</span>
+                  <span className={`text-xs ${isProjectOverdue(project) ? "font-semibold text-red-600" : "text-muted"}`}>{isProjectOverdue(project) ? "Overdue · " : "Due "}{formatDate(project.deadline)}</span>
                 </div>
               </article>
             );

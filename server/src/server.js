@@ -11,6 +11,7 @@ import projectRoutes from "./routes/projectRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
 import workspaceRoutes from "./routes/workspaceRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import { startOverdueNotificationScheduler } from "./utils/overdueNotificationScheduler.js";
 
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
@@ -41,7 +42,10 @@ app.use((error, _req, res, next) => {
 
 const port = process.env.PORT || 5000;
 connectDB()
-  .then(() => httpServer.listen(port, () => console.log(`API and Socket.IO listening on http://localhost:${port}`)))
+  .then(() => {
+    startOverdueNotificationScheduler(io);
+    httpServer.listen(port, () => console.log(`API and Socket.IO listening on http://localhost:${port}`));
+  })
   .catch((error) => {
     console.error(`Server startup failed: ${error.message}`);
     process.exit(1);

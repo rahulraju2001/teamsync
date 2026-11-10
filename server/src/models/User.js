@@ -4,6 +4,10 @@ import bcrypt from "bcryptjs";
 const notificationPreferencesSchema = new mongoose.Schema({
   inApp: { type: Boolean, default: true },
   email: { type: Boolean, default: false },
+  dueSoon: {
+    enabled: { type: Boolean, default: true },
+    daysBefore: { type: [Number], default: [3, 1, 0], validate: { validator: (values) => values.every((value) => [3, 1, 0].includes(value)) } },
+  },
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({

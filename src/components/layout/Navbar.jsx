@@ -167,7 +167,7 @@ function Navbar({ isCollapsed, setIsCollapsed, setIsMobileOpen }) {
                     </div>
                     <p className="text-sm font-medium text-heading">You're all caught up!</p>
                     <p className="text-xs text-muted mt-1 max-w-52">
-                      We'll let you know when your workspace has task activity.
+                      We'll let you know about task, project, and workspace activity.
                     </p>
                   </div>
                 ) : (
@@ -176,7 +176,12 @@ function Navbar({ isCollapsed, setIsCollapsed, setIsMobileOpen }) {
                       type="button"
                       key={notification._id}
                       onClick={() => {
-                        if (!notification.readAt) markNotificationRead(notification._id);
+                        if (!notification.readAt) {
+                          markNotificationRead(notification._id).catch((error) => console.error("Could not mark notification as read:", error));
+                        }
+                        setIsNotificationsOpen(false);
+                        if (notification.projectId) navigate(`/projects/${notification.projectId}`);
+                        else if (notification.taskId) navigate("/tasks");
                       }}
                       className={`w-full border-b border-border px-4 py-3 text-left transition hover:bg-slate-50 ${notification.readAt ? "bg-white" : "bg-indigo-50/50"}`}
                     >
